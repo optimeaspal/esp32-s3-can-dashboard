@@ -1,0 +1,30 @@
+# PlatformIO
+.pio/
+.vscode/
+*.pio
+
+# ESP-IDF build artifacts
+build/
+dependencies/
+managed_components/
+sdkconfig
+sdkconfig.old
+
+# sdkconfig.defaults wird eingecheckt (Pflichteinstellungen für dieses Board)
+!sdkconfig.defaults
+
+# Python / ESP-IDF toolchain
+__pycache__/
+*.pyc
+.env
+
+# Lokale Docs & Demo-Extrakt (Binaries, entpackte Demo – kein Source)
+documents/_demo_extract/
+documents/*.zip
+documents/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
