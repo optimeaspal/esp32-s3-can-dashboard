@@ -1,0 +1,102 @@
+menu "CAN Dashboard Configuration"
+
+    menu "Display / LVGL"
+        config EXAMPLE_LCD_RGB_BOUNCE_BUFFER_HEIGHT
+            int "RGB Bounce-Buffer Höhe"
+            default 10
+
+        config EXAMPLE_LVGL_PORT_TASK_MAX_DELAY_MS
+            int "LVGL Task maximale Verzögerung (ms)"
+            default 500
+            range 2 2000
+
+        config EXAMPLE_LVGL_PORT_TASK_MIN_DELAY_MS
+            int "LVGL Task minimale Verzögerung (ms)"
+            default 10
+            range 1 100
+
+        config EXAMPLE_LVGL_PORT_TASK_PRIORITY
+            int "LVGL Task Priorität"
+            default 2
+
+        config EXAMPLE_LVGL_PORT_TASK_STACK_SIZE_KB
+            int "LVGL Task Stack (KB)"
+            default 6
+
+        config EXAMPLE_LVGL_PORT_TASK_CORE
+            int "LVGL Task Core (-1 = beliebig)"
+            default 1
+            range -1 1
+
+        config EXAMPLE_LVGL_PORT_TICK
+            int "LVGL Tick Periode (ms)"
+            default 2
+            range 1 100
+
+        config EXAMPLE_LVGL_PORT_AVOID_TEAR_ENABLE
+            bool "Anti-Tearing aktivieren (empfohlen für RGB-LCD)"
+            default y
+
+        choice
+            depends on EXAMPLE_LVGL_PORT_AVOID_TEAR_ENABLE
+            prompt "Anti-Tearing Modus"
+            default EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE_3
+            config EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE_1
+                bool "Modus 1: Double-Buffer & Full-Refresh"
+            config EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE_2
+                bool "Modus 2: Triple-Buffer & Full-Refresh"
+            config EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE_3
+                bool "Modus 3: Double-Buffer & Direct-Mode (empfohlen)"
+        endchoice
+
+        config EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE
+            depends on EXAMPLE_LVGL_PORT_AVOID_TEAR_ENABLE
+            int
+            default 1 if EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE_1
+            default 2 if EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE_2
+            default 3 if EXAMPLE_LVGL_PORT_AVOID_TEAR_MODE_3
+
+        config EXAMPLE_LVGL_PORT_ROTATION_DEGREE
+            int
+            default 0
+
+        config EXAMPLE_LVGL_PORT_BUF_PSRAM
+            bool
+            default n
+
+        config EXAMPLE_LVGL_PORT_BUF_INTERNAL
+            bool
+            default y
+
+        config EXAMPLE_LVGL_PORT_BUF_HEIGHT
+            int "LVGL Buffer Höhe (ohne Anti-Tearing)"
+            default 100
+    endmenu
+
+    menu "CAN / TWAI"
+        config EXAMPLE_TX_GPIO_NUM
+            int "CAN TX GPIO"
+            default 20
+
+        config EXAMPLE_RX_GPIO_NUM
+            int "CAN RX GPIO"
+            default 19
+
+        config CAN_BITRATE_KBPS
+            int "CAN Bitrate (kBit/s)"
+            default 500
+            help
+                Unterstützt: 25, 50, 100, 125, 250, 500, 800, 1000
+
+        config CAN_RX_QUEUE_LEN
+            int "CAN Empfangs-Queue Länge (Frames)"
+            default 32
+
+        config CAN_SIGNAL_STALE_MS
+            int "Signal Timeout – Stale-Erkennung (ms)"
+            default 2000
+            help
+                Widgets werden ausgegraut wenn kein Update innerhalb dieser Zeit.
+    endmenu
+
+endmenu
