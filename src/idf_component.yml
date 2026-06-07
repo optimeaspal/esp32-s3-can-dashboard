@@ -1,0 +1,11 @@
+dependencies:
+  idf:
+    version: ">=5.1.0"
+
+  # LVGL v8 – Widgets: lv_meter, lv_chart, lv_bar, lv_led
+  lvgl/lvgl:
+    version: ">8.3.9,<9"
+    public: true
+
+  # Kapazitiver Touch-Controller GT911
+  esp_lcd_touch_gt911: "^1"

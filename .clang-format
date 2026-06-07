@@ -1,0 +1,12 @@
+BasedOnStyle:                        Google
+Language:                            Cpp
+IndentWidth:                         4
+ColumnLimit:                         100
+AllowShortFunctionsOnASingleLine:    None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine:        false
+BraceWrapping:
+  AfterFunction:                     true
+BreakBeforeBraces:                   Allman
+SortIncludes:                        false
+SpaceBeforeParens:                   ControlStatements
