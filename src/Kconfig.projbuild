@@ -74,6 +74,15 @@ menu "CAN Dashboard Configuration"
     endmenu
 
     menu "CAN / TWAI"
+        config CAN_SIMULATOR_ENABLE
+            bool "CAN-Simulator aktivieren (kein TWAI-Hardware nötig)"
+            default y
+            help
+                Ersetzt den TWAI-Treiber durch einen synthetischen Datengenerator.
+                Nützlich für Toolchain-Tests und UI-Entwicklung ohne echten CAN-Bus.
+                Vor Produktiveinsatz auf 'n' setzen.
+
+
         config EXAMPLE_TX_GPIO_NUM
             int "CAN TX GPIO"
             default 20

@@ -114,7 +114,8 @@ esp_err_t waveshare_rgb_lcd_init(void)
     touch_reset();
 
     esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-    const esp_lcd_panel_io_i2c_config_t tp_io_cfg = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+    esp_lcd_panel_io_i2c_config_t tp_io_cfg = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+    tp_io_cfg.scl_speed_hz = 0; // Legacy-I2C-Treiber: Geschwindigkeit via i2c_param_config, nicht hier
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(
         (esp_lcd_i2c_bus_handle_t)I2C_MASTER_NUM, &tp_io_cfg, &tp_io_handle));
 

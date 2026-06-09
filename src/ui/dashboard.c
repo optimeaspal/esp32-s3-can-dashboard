@@ -97,6 +97,10 @@ static void create_gauge(lv_obj_t *parent)
     gauge_rpm_needle = lv_meter_add_needle_line(gauge_rpm, scale, 3, COLOR_YELLOW, -10);
     lv_meter_set_indicator_value(gauge_rpm, gauge_rpm_needle, 0);
 
+    // Tick-Labels explizit hell färben (Theme überschreibt sonst die Farbe aus set_scale_major_ticks)
+    lv_obj_set_style_text_color(gauge_rpm, lv_color_white(), LV_PART_TICKS);
+    lv_obj_set_style_line_color(gauge_rpm, lv_color_hex(0xAAACCC), LV_PART_TICKS);
+
     // Einheits-Label
     lv_obj_t *unit = lv_label_create(panel);
     lv_label_set_text(unit, "RPM");
@@ -111,8 +115,8 @@ static void create_chart(lv_obj_t *parent)
     lv_obj_t *panel = create_panel(parent, "Temperatur", 390, 10, 400, 220);
 
     chart_temp = lv_chart_create(panel);
-    lv_obj_set_size(chart_temp, 360, 160);
-    lv_obj_align(chart_temp, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_size(chart_temp, 330, 160);
+    lv_obj_align(chart_temp, LV_ALIGN_BOTTOM_RIGHT, -5, 0);
     lv_obj_set_style_bg_color(chart_temp, COLOR_BG, 0);
     lv_obj_set_style_border_color(chart_temp, COLOR_ACCENT, 0);
     lv_obj_set_style_border_width(chart_temp, 1, 0);
@@ -190,10 +194,8 @@ static void update_chart(float value, bool stale)
 {
     lv_color_t line_color = stale ? COLOR_STALE : COLOR_GREEN;
     lv_obj_set_style_line_color(chart_temp, line_color, LV_PART_ITEMS);
-    if (!stale) {
+    if (!stale)
         lv_chart_set_next_value(chart_temp, chart_temp_ser, (lv_coord_t)value);
-        lv_chart_refresh(chart_temp);
-    }
 }
 
 static void update_bar(float value, bool stale)
@@ -202,7 +204,7 @@ static void update_bar(float value, bool stale)
     lv_obj_set_style_bg_color(bar_fuel, ind_color, LV_PART_INDICATOR);
     if (!stale) {
         lv_bar_set_value(bar_fuel, (int32_t)value, LV_ANIM_ON);
-        lv_label_set_text_fmt(bar_fuel_label, "%.0f %%", value);
+        lv_label_set_text_fmt(bar_fuel_label, "%d %%", (int)value);
     }
 }
 

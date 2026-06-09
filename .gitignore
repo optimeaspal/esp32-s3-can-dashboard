@@ -9,6 +9,7 @@ dependencies/
 managed_components/
 sdkconfig
 sdkconfig.old
+sdkconfig.*
 
 # sdkconfig.defaults wird eingecheckt (Pflichteinstellungen für dieses Board)
 !sdkconfig.defaults

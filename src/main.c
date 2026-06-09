@@ -6,6 +6,7 @@
 #include "hal/lvgl_port.h"
 #include "app/can_signal.h"
 #include "app/can_dispatcher.h"
+#include "app/can_simulator.h"
 #include "ui/dashboard.h"
 
 static const char *TAG = "main";
@@ -114,9 +115,15 @@ void app_main(void)
         NULL);
     lvgl_port_unlock();
 
-    // CAN-Dispatcher starten (Core 0, Prio 5)
+    // CAN-Quelle starten: Simulator (Testbetrieb) oder echter TWAI-Dispatcher
+#if CONFIG_CAN_SIMULATOR_ENABLE
+    ESP_LOGW(TAG, "CAN-Simulator aktiv – keine TWAI-Hardware erforderlich");
+    ESP_ERROR_CHECK(can_simulator_start(
+        can_signals, can_signal_count, event_queue));
+#else
     ESP_ERROR_CHECK(can_dispatcher_start(
         can_signals, can_signal_count, event_queue));
+#endif
 
     ESP_LOGI(TAG, "Initialisierung abgeschlossen – Dashboard läuft");
     // Haupttask beendet sich; LVGL-Task und CAN-Task laufen weiter

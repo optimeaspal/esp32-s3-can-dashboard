@@ -303,6 +303,11 @@ static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
     esp_lcd_touch_read_data(tp);
     bool pressed = esp_lcd_touch_get_coordinates(tp, &tx, &ty, NULL, &cnt, 1);
     if (pressed && cnt > 0) {
+        static uint32_t touch_log_skip = 0;
+        if (++touch_log_skip >= 1) {
+            ESP_LOGI("touch", "x=%u y=%u", tx, ty);
+            touch_log_skip = 0;
+        }
         data->point.x = tx;
         data->point.y = ty;
         data->state = LV_INDEV_STATE_PRESSED;

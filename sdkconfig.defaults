@@ -47,3 +47,6 @@ CONFIG_LV_USE_IMGFONT=y
 # LVGL Widgets (für Dashboard: Meter, Chart, Bar, LED)
 CONFIG_LV_USE_DEMO_WIDGETS=y
 CONFIG_LV_USE_DEMO_BENCHMARK=y
+
+# Log: keine ANSI-Farbcodes (VS Code Output-Panel unterstützt kein ANSI)
+CONFIG_LOG_COLORS=n
