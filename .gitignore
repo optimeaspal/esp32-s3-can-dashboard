@@ -24,6 +24,9 @@ documents/_demo_extract/
 documents/*.zip
 documents/*.pdf
 
+# Claude Code – lokale Einstellungen (können Tokens/Credentials enthalten)
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db
