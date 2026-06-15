@@ -9,12 +9,6 @@
 #define TWAI_TX_GPIO CONFIG_EXAMPLE_TX_GPIO_NUM
 #define TWAI_RX_GPIO CONFIG_EXAMPLE_RX_GPIO_NUM
 
-// I2C CH422G (USB_SEL muss HIGH gesetzt werden damit GPIO19/20 → CAN, nicht USB)
-#define TWAI_I2C_NUM        0
-#define TWAI_I2C_SDA        8
-#define TWAI_I2C_SCL        9
-#define TWAI_I2C_TIMEOUT_MS 1000
-
 /*
  * Initialisiert den TWAI-Treiber:
  *   - CH422G via I²C konfigurieren (USB_SEL HIGH → GPIO19/20 → CAN-Transceiver)

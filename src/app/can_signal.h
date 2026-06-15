@@ -31,6 +31,8 @@ typedef struct
     uint8_t  byte_length;   // Länge in Bytes: 1, 2 oder 4
     bool     little_endian; // true = Intel (LE), false = Motorola (BE)
     bool     is_signed;     // true = vorzeichenbehafteter Rohwert
+    bool     is_float;      // true = IEEE-754-Float (scale/offset werden ignoriert)
+    bool     is_simulated;  // true = Wert wird vom Simulator erzeugt, nicht vom CAN-Bus
 
     float    scale;         // Skalierungsfaktor (raw → physikalisch)
     float    offset;        // Offset (raw → physikalisch)

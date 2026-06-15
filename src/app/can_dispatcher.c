@@ -6,6 +6,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+// DEBUG: Zeile auskommentieren um Sekunden-Statistik zu deaktivieren
+#define CAN_DEBUG_STATS 1
+
 static const char *TAG = "can_disp";
 
 typedef struct
@@ -18,9 +21,17 @@ typedef struct
 static void dispatcher_task(void *arg)
 {
     dispatcher_ctx_t *ctx = (dispatcher_ctx_t *)arg;
-    const uint32_t poll_ms = 100; // Alert-Wartezeit
+    const uint32_t poll_ms = 10; // Alert-Wartezeit
 
     ESP_LOGI(TAG, "Dispatcher-Task gestartet (%zu Signale)", ctx->count);
+
+#ifdef CAN_DEBUG_STATS
+    #define DBG_MAX_IDS 32
+    static uint32_t dbg_ids[DBG_MAX_IDS];
+    static uint32_t dbg_cnt[DBG_MAX_IDS];
+    static int      dbg_id_count = 0;
+    int64_t         dbg_next_us  = 0;
+#endif
 
     for (;;) {
         uint32_t alerts = 0;
@@ -41,14 +52,47 @@ static void dispatcher_task(void *arg)
             ESP_LOGW(TAG, "TWAI: RX queue full (missed=%" PRIu32 ")", st.rx_missed_count);
         }
 
-        if (!(alerts & TWAI_ALERT_RX_DATA))
+#ifdef CAN_DEBUG_STATS
+        {
+            int64_t now = esp_timer_get_time();
+            if (now >= dbg_next_us) {
+                dbg_next_us = now + 1000000;
+                if (dbg_id_count == 0) {
+                    ESP_LOGI(TAG, "Stats: keine Frames empfangen");
+                } else {
+                    for (int i = 0; i < dbg_id_count; i++) {
+                        ESP_LOGI(TAG, "Stats: 0x%03" PRIX32 " -> %" PRIu32 " Frames/s",
+                                 dbg_ids[i], dbg_cnt[i]);
+                        dbg_cnt[i] = 0;
+                    }
+                }
+            }
+        }
+#endif
+
+        if (!(alerts & (TWAI_ALERT_RX_DATA | TWAI_ALERT_RX_QUEUE_FULL)))
             continue;
 
         // Alle wartenden Frames verarbeiten
         twai_message_t msg;
         while (twai_receive(&msg, 0) == ESP_OK) {
             if (msg.rtr)
-                continue; // RTR-Frames ignorieren
+                continue;
+
+#ifdef CAN_DEBUG_STATS
+            {
+                int slot = -1;
+                for (int i = 0; i < dbg_id_count; i++) {
+                    if (dbg_ids[i] == msg.identifier) { slot = i; break; }
+                }
+                if (slot == -1 && dbg_id_count < DBG_MAX_IDS) {
+                    slot = dbg_id_count++;
+                    dbg_ids[slot] = msg.identifier;
+                    dbg_cnt[slot] = 0;
+                }
+                if (slot != -1) dbg_cnt[slot]++;
+            }
+#endif
 
             bool extended = (bool)msg.extd;
             int64_t ts = esp_timer_get_time();
@@ -66,7 +110,6 @@ static void dispatcher_task(void *arg)
                     .value        = value,
                     .timestamp_us = ts,
                 };
-                // Nicht-blockierend senden; bei voller Queue wird der Frame verworfen
                 xQueueSend(ctx->queue, &evt, 0);
             }
         }

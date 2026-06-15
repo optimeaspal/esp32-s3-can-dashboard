@@ -50,6 +50,9 @@ static void sim_task(void *arg)
         float t = (float)(esp_timer_get_time() / 1000) / 1000.0f; // ms → s
 
         for (uint8_t i = 0; i < (uint8_t)ctx->signal_count; i++) {
+            if (!ctx->signals[i].is_simulated)
+                continue;
+
             float v = sim_value(i, t);
 
             // Auf Signal-Bereich begrenzen

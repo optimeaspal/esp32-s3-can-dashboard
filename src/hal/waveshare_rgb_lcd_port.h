@@ -64,3 +64,7 @@
 esp_err_t waveshare_rgb_lcd_init(void);
 esp_err_t waveshare_rgb_lcd_bl_on(void);
 esp_err_t waveshare_rgb_lcd_bl_off(void);
+
+// CH422G USB_SEL HIGH setzen: GPIO19/20 → CAN-Transceiver statt USB.
+// Muss vor dem Start des LVGL-Tasks aufgerufen werden (kein I2C-Race mit GT911).
+esp_err_t waveshare_rgb_lcd_can_mux_enable(void);

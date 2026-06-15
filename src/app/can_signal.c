@@ -34,8 +34,23 @@ float can_signal_decode(const can_signal_t *sig, const uint8_t *data, uint8_t dl
     if (sig->byte_offset + sig->byte_length > dlc)
         return NAN; // Signal passt nicht in den Frame
 
-    int32_t raw = extract_raw(sig, data);
-    float value = (float)raw * sig->scale + sig->offset;
+    float value;
+
+    if (sig->is_float) {
+        // IEEE-754-Float: 4 Bytes direkt als float reinterpretieren
+        uint32_t raw = 0;
+        if (sig->little_endian) {
+            for (int i = sig->byte_length - 1; i >= 0; i--)
+                raw = (raw << 8) | data[sig->byte_offset + i];
+        } else {
+            for (int i = 0; i < sig->byte_length; i++)
+                raw = (raw << 8) | data[sig->byte_offset + i];
+        }
+        memcpy(&value, &raw, sizeof(float));
+    } else {
+        int32_t raw = extract_raw(sig, data);
+        value = (float)raw * sig->scale + sig->offset;
+    }
 
     // Auf Anzeigebereich clampen
     if (value < sig->min_value) value = sig->min_value;

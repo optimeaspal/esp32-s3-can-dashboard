@@ -165,3 +165,13 @@ esp_err_t waveshare_rgb_lcd_bl_off(void)
     buf = 0x1A;
     return i2c_master_write_to_device(I2C_MASTER_NUM, 0x38, &buf, 1, t);
 }
+
+esp_err_t waveshare_rgb_lcd_can_mux_enable(void)
+{
+    const TickType_t t = I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS;
+    uint8_t buf = 0x01;
+    i2c_master_write_to_device(I2C_MASTER_NUM, 0x24, &buf, 1, t);
+    // 0x1E = Backlight-Bits, 0x20 = USB_SEL HIGH → CAN; kombiniert 0x3E
+    buf = 0x3E;
+    return i2c_master_write_to_device(I2C_MASTER_NUM, 0x38, &buf, 1, t);
+}

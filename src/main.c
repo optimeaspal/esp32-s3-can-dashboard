@@ -18,73 +18,74 @@ static const char *TAG = "main";
 //   - timeout_ms = 0 deaktiviert Stale-Erkennung für das Signal
 //
 const can_signal_t can_signals[] = {
-    // Signal 0 → Gauge: Drehzahl 0..6000 RPM
-    // CAN 0x101, Bytes 0-1, uint16 LE, scale=1.0 → direkt in RPM
+    // Signal 0 → Gauge: Drehzahl 0..6000 RPM (simuliert)
     {
-        .can_id       = 0x101,
-        .extended_id  = false,
-        .byte_offset  = 0,
-        .byte_length  = 2,
+        .can_id        = 0x102,
+        .extended_id   = false,
+        .byte_offset   = 0,
+        .byte_length   = 2,
         .little_endian = true,
-        .is_signed    = false,
-        .scale        = 1.0f,
-        .offset       = 0.0f,
-        .min_value    = 0.0f,
-        .max_value    = 6000.0f,
-        .timeout_ms   = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name         = "RPM",
-        .unit         = "1/min",
+        .is_signed     = false,
+        .is_simulated  = true,
+        .scale         = 1.0f,
+        .offset        = 0.0f,
+        .min_value     = 0.0f,
+        .max_value     = 6000.0f,
+        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
+        .name          = "RPM",
+        .unit          = "1/min",
     },
-    // Signal 1 → Chart: Motortemperatur -40..150°C
-    // CAN 0x102, Byte 0, int8, scale=1.0, offset=-40
+    // Signal 1 → Chart: Temperatur – IEEE-754 float, 32 Bit, Little-Endian (CAN ID 0x2A)
     {
-        .can_id       = 0x102,
-        .extended_id  = false,
-        .byte_offset  = 0,
-        .byte_length  = 1,
+        .can_id        = 0x02A,
+        .extended_id   = false,
+        .byte_offset   = 0,
+        .byte_length   = 4,
         .little_endian = true,
-        .is_signed    = true,
-        .scale        = 1.0f,
-        .offset       = -40.0f,
-        .min_value    = -40.0f,
-        .max_value    = 150.0f,
-        .timeout_ms   = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name         = "Motortemperatur",
-        .unit         = "C",
+        .is_signed     = false,
+        .is_float      = true,
+        .is_simulated  = false,
+        .scale         = 1.0f,
+        .offset        = 0.0f,
+        .min_value     = 0.0f,
+        .max_value     = 100.0f,
+        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
+        .name          = "Temperatur",
+        .unit          = "C",
     },
-    // Signal 2 → Bar: Kraftstoffstand 0..100%
-    // CAN 0x103, Byte 0, uint8, scale=100/255
+    // Signal 2 → Bar: Kraftstoffstand 0..100% (simuliert)
     {
-        .can_id       = 0x103,
-        .extended_id  = false,
-        .byte_offset  = 0,
-        .byte_length  = 1,
+        .can_id        = 0x103,
+        .extended_id   = false,
+        .byte_offset   = 0,
+        .byte_length   = 1,
         .little_endian = true,
-        .is_signed    = false,
-        .scale        = 100.0f / 255.0f,
-        .offset       = 0.0f,
-        .min_value    = 0.0f,
-        .max_value    = 100.0f,
-        .timeout_ms   = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name         = "Kraftstoff",
-        .unit         = "%",
+        .is_signed     = false,
+        .is_simulated  = true,
+        .scale         = 100.0f / 255.0f,
+        .offset        = 0.0f,
+        .min_value     = 0.0f,
+        .max_value     = 100.0f,
+        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
+        .name          = "Kraftstoff",
+        .unit          = "%",
     },
-    // Signal 3 → LED: Warnzustand (0=OK, >0=Warnung)
-    // CAN 0x104, Byte 0, uint8, scale=1.0
+    // Signal 3 → LED: Rechteck 0/1 – 1=ON (CAN ID 0x2B)
     {
-        .can_id       = 0x104,
-        .extended_id  = false,
-        .byte_offset  = 0,
-        .byte_length  = 1,
+        .can_id        = 0x02B,
+        .extended_id   = false,
+        .byte_offset   = 0,
+        .byte_length   = 1,
         .little_endian = true,
-        .is_signed    = false,
-        .scale        = 1.0f,
-        .offset       = 0.0f,
-        .min_value    = 0.0f,
-        .max_value    = 255.0f,
-        .timeout_ms   = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name         = "Warnung",
-        .unit         = "",
+        .is_signed     = false,
+        .is_simulated  = false,
+        .scale         = 1.0f,
+        .offset        = 0.0f,
+        .min_value     = 0.0f,
+        .max_value     = 1.0f,
+        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
+        .name          = "Status",
+        .unit          = "",
     },
 };
 const size_t can_signal_count = sizeof(can_signals) / sizeof(can_signals[0]);
@@ -98,9 +99,11 @@ void app_main(void)
         CONFIG_CAN_RX_QUEUE_LEN, sizeof(can_value_event_t));
     assert(event_queue);
 
-    // Display + LVGL initialisieren (Backlight nach Init einschalten)
+    // Display + LVGL initialisieren, Backlight + CAN-Mux via CH422G setzen
+    // (alle CH422G-Schreibzugriffe VOR Start des LVGL-Timers, kein I2C-Race mit GT911)
     ESP_ERROR_CHECK(waveshare_rgb_lcd_init());
     ESP_ERROR_CHECK(waveshare_rgb_lcd_bl_on());
+    ESP_ERROR_CHECK(waveshare_rgb_lcd_can_mux_enable());
 
     // Dashboard-Screen erstellen (innerhalb LVGL-Mutex)
     lvgl_port_lock(-1);
@@ -115,15 +118,9 @@ void app_main(void)
         NULL);
     lvgl_port_unlock();
 
-    // CAN-Quelle starten: Simulator (Testbetrieb) oder echter TWAI-Dispatcher
-#if CONFIG_CAN_SIMULATOR_ENABLE
-    ESP_LOGW(TAG, "CAN-Simulator aktiv – keine TWAI-Hardware erforderlich");
-    ESP_ERROR_CHECK(can_simulator_start(
-        can_signals, can_signal_count, event_queue));
-#else
-    ESP_ERROR_CHECK(can_dispatcher_start(
-        can_signals, can_signal_count, event_queue));
-#endif
+    // Simulator für is_simulated-Signale + Dispatcher für echte CAN-Signale
+    ESP_ERROR_CHECK(can_simulator_start(can_signals, can_signal_count, event_queue));
+    ESP_ERROR_CHECK(can_dispatcher_start(can_signals, can_signal_count, event_queue));
 
     ESP_LOGI(TAG, "Initialisierung abgeschlossen – Dashboard läuft");
     // Haupttask beendet sich; LVGL-Task und CAN-Task laufen weiter
