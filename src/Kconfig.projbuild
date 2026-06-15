@@ -97,6 +97,38 @@ menu "CAN Dashboard Configuration"
             default 2000
             help
                 Widgets werden ausgegraut wenn kein Update innerhalb dieser Zeit.
+
+        config CAN_SIMULATOR_ENABLE
+            bool "CAN-Simulator aktivieren (synthetische Werte statt TWAI)"
+            default y
+            help
+                Wenn aktiv, erzeugt der Simulator Werte für alle Signale mit
+                "simulated": true in der dashboard.json – kein CAN-Bus nötig.
+    endmenu
+
+    menu "SD-Karte / Konfiguration"
+        config SD_SPI_MOSI_GPIO
+            int "SD SPI MOSI GPIO"
+            default 11
+
+        config SD_SPI_MISO_GPIO
+            int "SD SPI MISO GPIO"
+            default 13
+
+        config SD_SPI_CLK_GPIO
+            int "SD SPI CLK GPIO"
+            default 12
+
+        config SD_CS_CH422G_PIN
+            int "SD Chip-Select Pin am CH422G IO-Expander"
+            default 4
+            help
+                SD-CS wird nicht über einen direkten GPIO, sondern über den
+                CH422G-IO-Expander gesteuert. Pin-Nummer am CH422G (siehe research.md).
+
+        config DASHBOARD_JSON_PATH
+            string "Pfad zur Dashboard-Konfigurationsdatei auf der SD-Karte"
+            default "/sdcard/dashboard.json"
     endmenu
 
 endmenu

@@ -1,290 +1,145 @@
 #include "dashboard.h"
-#include "app/can_signal.h"
+#include "widget_registry.h"
+#include "nav_indicator.h"
 #include "lvgl.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 static const char *TAG = "dashboard";
 
-// Externe Signal-Tabelle (definiert in main.c)
-extern const can_signal_t can_signals[];
-extern const size_t       can_signal_count;
+#define COLOR_BG lv_color_hex(0x1A1A2E)
+#define MAX_LIVE_WIDGETS (CFG_MAX_PAGES * CFG_MAX_WIDGETS_PER_PAGE)
 
-// ── Widget-Handles ────────────────────────────────────────────────────────────
-static lv_obj_t *gauge_rpm;         // lv_meter  → Drehzahl
-static lv_meter_indicator_t *gauge_rpm_needle;
-
-static lv_obj_t *chart_temp;        // lv_chart  → Temperatur-Verlauf
-static lv_chart_series_t *chart_temp_ser;
-
-static lv_obj_t *bar_fuel;          // lv_bar    → Kraftstoff
-static lv_obj_t *bar_fuel_label;
-
-static lv_obj_t *led_warn;          // lv_led    → Warnleuchte
-static lv_obj_t *led_warn_label;
-
-// ── Stale-Tracking ───────────────────────────────────────────────────────────
-#define MAX_SIGNALS 16
-static int64_t last_update_us[MAX_SIGNALS];
-static size_t  signal_count_local;
-static QueueHandle_t evt_queue;
-
-// ── Farben / Theme ───────────────────────────────────────────────────────────
-#define COLOR_BG       lv_color_hex(0x1A1A2E)
-#define COLOR_PANEL    lv_color_hex(0x16213E)
-#define COLOR_ACCENT   lv_color_hex(0x0F3460)
-#define COLOR_GREEN    lv_color_hex(0x00B894)
-#define COLOR_RED      lv_color_hex(0xE74C3C)
-#define COLOR_YELLOW   lv_color_hex(0xF1C40F)
-#define COLOR_TEXT     lv_color_hex(0xECF0F1)
-#define COLOR_STALE    lv_color_hex(0x555577)
-
-// ── Hilfsfunktion: Panel mit Titel erstellen ─────────────────────────────────
-static lv_obj_t *create_panel(lv_obj_t *parent, const char *title,
-                               lv_coord_t x, lv_coord_t y,
-                               lv_coord_t w, lv_coord_t h)
+/* Ein gerendertes Widget mit seiner Signalbindung. */
+typedef struct
 {
-    lv_obj_t *panel = lv_obj_create(parent);
-    lv_obj_set_pos(panel, x, y);
-    lv_obj_set_size(panel, w, h);
-    lv_obj_set_style_bg_color(panel, COLOR_PANEL, 0);
-    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(panel, COLOR_ACCENT, 0);
-    lv_obj_set_style_border_width(panel, 2, 0);
-    lv_obj_set_style_radius(panel, 8, 0);
-    lv_obj_set_style_pad_all(panel, 10, 0);
+    lv_obj_t                  *obj;
+    const widget_descriptor_t *desc;
+    int16_t                    signal_idx;
+} live_widget_t;
 
-    lv_obj_t *label = lv_label_create(panel);
-    lv_label_set_text(label, title);
-    lv_obj_set_style_text_color(label, COLOR_TEXT, 0);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
-    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 0);
+static const dashboard_config_t *s_cfg;
+static QueueHandle_t             s_queue;
+static lv_obj_t                 *s_tileview;
+static lv_obj_t                 *s_nav;
 
-    return panel;
+static live_widget_t s_widgets[MAX_LIVE_WIDGETS];
+static size_t        s_widget_count;
+
+static int64_t s_last_update_us[CFG_MAX_SIGNALS];
+static bool    s_stale_flag[CFG_MAX_SIGNALS];
+
+/* ── Navigation ───────────────────────────────────────────────────────────── */
+static void on_page_changed(lv_event_t *e)
+{
+    lv_obj_t *tv  = lv_event_get_target(e);
+    lv_obj_t *act = lv_tileview_get_tile_act(tv);
+    if (!act) return;
+    uint8_t idx = (uint8_t)(uintptr_t)lv_obj_get_user_data(act);
+    nav_indicator_set_active(s_nav, idx);
 }
 
-// ── Gauge (lv_meter) – Drehzahl 0..6000 RPM ─────────────────────────────────
-static void create_gauge(lv_obj_t *parent)
+static void on_dot_clicked(lv_event_t *e)
 {
-    lv_obj_t *panel = create_panel(parent, "Drehzahl", 10, 10, 370, 220);
-
-    gauge_rpm = lv_meter_create(panel);
-    lv_obj_set_size(gauge_rpm, 180, 180);
-    lv_obj_align(gauge_rpm, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(gauge_rpm, COLOR_PANEL, 0);
-    lv_obj_set_style_border_width(gauge_rpm, 0, 0);
-
-    lv_meter_scale_t *scale = lv_meter_add_scale(gauge_rpm);
-    lv_meter_set_scale_ticks(gauge_rpm, scale, 61, 2, 10,
-                             lv_color_hex(0x444466));
-    lv_meter_set_scale_major_ticks(gauge_rpm, scale, 10, 4, 15,
-                                   COLOR_TEXT, 14);
-    lv_meter_set_scale_range(gauge_rpm, scale, 0, 6000, 270, 135);
-
-    // Grüner Bereich 0..4000
-    lv_meter_add_arc(gauge_rpm, scale, 6, COLOR_GREEN, 0);
-    lv_meter_indicator_t *arc_green = lv_meter_add_arc(gauge_rpm, scale, 6, COLOR_GREEN, 0);
-    lv_meter_set_indicator_start_value(gauge_rpm, arc_green, 0);
-    lv_meter_set_indicator_end_value(gauge_rpm, arc_green, 4000);
-
-    // Roter Bereich 4000..6000
-    lv_meter_indicator_t *arc_red = lv_meter_add_arc(gauge_rpm, scale, 6, COLOR_RED, 0);
-    lv_meter_set_indicator_start_value(gauge_rpm, arc_red, 4000);
-    lv_meter_set_indicator_end_value(gauge_rpm, arc_red, 6000);
-
-    gauge_rpm_needle = lv_meter_add_needle_line(gauge_rpm, scale, 3, COLOR_YELLOW, -10);
-    lv_meter_set_indicator_value(gauge_rpm, gauge_rpm_needle, 0);
-
-    // Tick-Labels explizit hell färben (Theme überschreibt sonst die Farbe aus set_scale_major_ticks)
-    lv_obj_set_style_text_color(gauge_rpm, lv_color_white(), LV_PART_TICKS);
-    lv_obj_set_style_line_color(gauge_rpm, lv_color_hex(0xAAACCC), LV_PART_TICKS);
-
-    // Einheits-Label
-    lv_obj_t *unit = lv_label_create(panel);
-    lv_label_set_text(unit, "RPM");
-    lv_obj_set_style_text_color(unit, COLOR_TEXT, 0);
-    lv_obj_set_style_text_font(unit, &lv_font_montserrat_12, 0);
-    lv_obj_align(unit, LV_ALIGN_BOTTOM_MID, 0, -4);
+    uint8_t idx = (uint8_t)(uintptr_t)lv_event_get_user_data(e);
+    lv_obj_set_tile_id(s_tileview, idx, 0, LV_ANIM_ON);
 }
 
-// ── Chart (lv_chart) – Temperatur-Verlauf ────────────────────────────────────
-static void create_chart(lv_obj_t *parent)
+/* ── Aufbau ───────────────────────────────────────────────────────────────── */
+void dashboard_create(const dashboard_config_t *cfg, QueueHandle_t event_queue)
 {
-    lv_obj_t *panel = create_panel(parent, "Temperatur", 390, 10, 400, 220);
-
-    chart_temp = lv_chart_create(panel);
-    lv_obj_set_size(chart_temp, 330, 160);
-    lv_obj_align(chart_temp, LV_ALIGN_BOTTOM_RIGHT, -5, 0);
-    lv_obj_set_style_bg_color(chart_temp, COLOR_BG, 0);
-    lv_obj_set_style_border_color(chart_temp, COLOR_ACCENT, 0);
-    lv_obj_set_style_border_width(chart_temp, 1, 0);
-
-    lv_chart_set_type(chart_temp, LV_CHART_TYPE_LINE);
-    lv_chart_set_range(chart_temp, LV_CHART_AXIS_PRIMARY_Y, -40, 150);
-    lv_chart_set_point_count(chart_temp, 60);
-    lv_chart_set_div_line_count(chart_temp, 5, 5);
-    lv_obj_set_style_line_color(chart_temp, lv_color_hex(0x334466), LV_PART_MAIN);
-
-    chart_temp_ser = lv_chart_add_series(
-        chart_temp, COLOR_GREEN, LV_CHART_AXIS_PRIMARY_Y);
-
-    // Y-Achse Ticks
-    lv_chart_set_axis_tick(chart_temp, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 4, 1, true, 35);
-
-    lv_obj_t *unit = lv_label_create(panel);
-    lv_label_set_text(unit, "°C");
-    lv_obj_set_style_text_color(unit, COLOR_TEXT, 0);
-    lv_obj_set_style_text_font(unit, &lv_font_montserrat_12, 0);
-    lv_obj_align(unit, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
-}
-
-// ── Bar (lv_bar) – Kraftstoffstand 0..100% ───────────────────────────────────
-static void create_bar(lv_obj_t *parent)
-{
-    lv_obj_t *panel = create_panel(parent, "Kraftstoff", 10, 245, 370, 220);
-
-    bar_fuel = lv_bar_create(panel);
-    lv_obj_set_size(bar_fuel, 320, 30);
-    lv_obj_align(bar_fuel, LV_ALIGN_CENTER, 0, 10);
-    lv_bar_set_range(bar_fuel, 0, 100);
-    lv_bar_set_value(bar_fuel, 0, LV_ANIM_OFF);
-
-    lv_obj_set_style_bg_color(bar_fuel, COLOR_ACCENT, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(bar_fuel, COLOR_GREEN, LV_PART_INDICATOR);
-    lv_obj_set_style_radius(bar_fuel, 4, 0);
-
-    bar_fuel_label = lv_label_create(panel);
-    lv_label_set_text(bar_fuel_label, "0 %");
-    lv_obj_set_style_text_color(bar_fuel_label, COLOR_TEXT, 0);
-    lv_obj_set_style_text_font(bar_fuel_label, &lv_font_montserrat_20, 0);
-    lv_obj_align_to(bar_fuel_label, bar_fuel, LV_ALIGN_OUT_BOTTOM_MID, 0, 8);
-}
-
-// ── LED (lv_led) – Warnleuchte ───────────────────────────────────────────────
-static void create_led(lv_obj_t *parent)
-{
-    lv_obj_t *panel = create_panel(parent, "Warnung", 390, 245, 400, 220);
-
-    led_warn = lv_led_create(panel);
-    lv_obj_set_size(led_warn, 80, 80);
-    lv_obj_align(led_warn, LV_ALIGN_CENTER, 0, 10);
-    lv_led_set_color(led_warn, COLOR_RED);
-    lv_led_off(led_warn);
-
-    led_warn_label = lv_label_create(panel);
-    lv_label_set_text(led_warn_label, "AUS");
-    lv_obj_set_style_text_color(led_warn_label, COLOR_TEXT, 0);
-    lv_obj_set_style_text_font(led_warn_label, &lv_font_montserrat_20, 0);
-    lv_obj_align_to(led_warn_label, led_warn, LV_ALIGN_OUT_BOTTOM_MID, 0, 8);
-}
-
-// ── Widget-Update-Funktionen (aufgerufen von dashboard_tick) ─────────────────
-
-static void update_gauge(float value, bool stale)
-{
-    lv_color_t needle_color = stale ? COLOR_STALE : COLOR_YELLOW;
-    lv_obj_set_style_line_color(gauge_rpm, needle_color, LV_PART_INDICATOR);
-    if (!stale)
-        lv_meter_set_indicator_value(gauge_rpm, gauge_rpm_needle, (int32_t)value);
-}
-
-static void update_chart(float value, bool stale)
-{
-    lv_color_t line_color = stale ? COLOR_STALE : COLOR_GREEN;
-    lv_obj_set_style_line_color(chart_temp, line_color, LV_PART_ITEMS);
-    if (!stale)
-        lv_chart_set_next_value(chart_temp, chart_temp_ser, (lv_coord_t)value);
-}
-
-static void update_bar(float value, bool stale)
-{
-    lv_color_t ind_color = stale ? COLOR_STALE : COLOR_GREEN;
-    lv_obj_set_style_bg_color(bar_fuel, ind_color, LV_PART_INDICATOR);
-    if (!stale) {
-        lv_bar_set_value(bar_fuel, (int32_t)value, LV_ANIM_ON);
-        lv_label_set_text_fmt(bar_fuel_label, "%d %%", (int)value);
-    }
-}
-
-static void update_led(float value, bool stale)
-{
-    if (stale) {
-        lv_led_set_brightness(led_warn, 60);
-        lv_led_set_color(led_warn, COLOR_STALE);
-        lv_label_set_text(led_warn_label, "---");
-        return;
-    }
-    // Warnleuchte an wenn Wert > 0
-    if (value > 0.0f) {
-        lv_led_on(led_warn);
-        lv_led_set_color(led_warn, COLOR_RED);
-        lv_label_set_text(led_warn_label, "WARNUNG");
-    } else {
-        lv_led_off(led_warn);
-        lv_led_set_color(led_warn, COLOR_GREEN);
-        lv_label_set_text(led_warn_label, "OK");
-    }
-}
-
-// ── Öffentliche API ───────────────────────────────────────────────────────────
-
-void dashboard_create(QueueHandle_t event_queue, size_t sig_count)
-{
-    evt_queue = event_queue;
-    signal_count_local = (sig_count < MAX_SIGNALS) ? sig_count : MAX_SIGNALS;
-    memset(last_update_us, 0, sizeof(last_update_us));
+    s_cfg          = cfg;
+    s_queue        = event_queue;
+    s_widget_count = 0;
+    memset(s_last_update_us, 0, sizeof(s_last_update_us));
+    memset(s_stale_flag, 0, sizeof(s_stale_flag));
 
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, COLOR_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
-    create_gauge(scr);
-    create_chart(scr);
-    create_bar(scr);
-    create_led(scr);
+    lv_coord_t nav_h = (cfg->page_count >= 2) ? NAV_BAR_HEIGHT : 0;
 
-    ESP_LOGI(TAG, "Dashboard erstellt (800x480)");
-}
+    s_tileview = lv_tileview_create(scr);
+    lv_obj_set_size(s_tileview, LV_HOR_RES, LV_VER_RES - nav_h);
+    lv_obj_align(s_tileview, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_color(s_tileview, COLOR_BG, 0);
+    lv_obj_add_event_cb(s_tileview, on_page_changed, LV_EVENT_VALUE_CHANGED, NULL);
 
-void dashboard_tick(void)
-{
-    can_value_event_t evt;
-    // Alle wartenden Events verarbeiten (nicht-blockierend)
-    while (xQueueReceive(evt_queue, &evt, 0) == pdTRUE) {
-        if (evt.signal_idx >= signal_count_local) continue;
+    for (uint8_t p = 0; p < cfg->page_count; p++) {
+        const page_config_t *page = &cfg->pages[p];
+        lv_obj_t *tile = lv_tileview_add_tile(s_tileview, p, 0, LV_DIR_HOR);
+        lv_obj_set_user_data(tile, (void *)(uintptr_t)p);
+        lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
 
-        last_update_us[evt.signal_idx] = evt.timestamp_us;
-        int64_t now = esp_timer_get_time();
+        for (uint8_t w = 0; w < page->widget_count; w++) {
+            const widget_config_t *wc = &page->widgets[w];
+            const widget_descriptor_t *desc = widget_registry_find(wc->type);
+            if (!desc) {
+                ESP_LOGW(TAG, "Unbekannter Widget-Typ '%s' – übersprungen", wc->type);
+                continue;   /* FR-002: andere Widgets bleiben */
+            }
+            const can_signal_t *sig =
+                (wc->signal_idx >= 0 && wc->signal_idx < cfg->signal_count)
+                    ? &cfg->signals[wc->signal_idx] : NULL;
 
-        // Signal-Index → Widget-Zuweisung (POC: fest verdrahtet)
-        switch (evt.signal_idx) {
-        case 0: update_gauge(evt.value, false);  break;
-        case 1: update_chart(evt.value, false);  break;
-        case 2: update_bar(evt.value, false);    break;
-        case 3: update_led(evt.value, false);    break;
-        default: break;
+            lv_obj_t *obj = desc->create(tile, wc, sig);
+            if (!obj) continue;
+
+            if (s_widget_count < MAX_LIVE_WIDGETS) {
+                s_widgets[s_widget_count].obj        = obj;
+                s_widgets[s_widget_count].desc       = desc;
+                s_widgets[s_widget_count].signal_idx = wc->signal_idx;
+                s_widget_count++;
+            }
         }
-
-        (void)now;
     }
 
-    // Stale-Überprüfung für alle Signale
-    int64_t now = esp_timer_get_time();
-    for (size_t i = 0; i < signal_count_local; i++) {
-        if (can_signals[i].timeout_ms == 0) continue;
-        int64_t timeout_us = (int64_t)can_signals[i].timeout_ms * 1000;
-        bool stale = (last_update_us[i] > 0)
-                     && ((now - last_update_us[i]) > timeout_us);
-        if (!stale) continue;
+    /* Navigationsleiste nur bei >= 2 Seiten */
+    s_nav = nav_indicator_create(scr, cfg->page_count);
+    if (s_nav) {
+        uint32_t n = lv_obj_get_child_cnt(s_nav);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *dot = lv_obj_get_child(s_nav, i);
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(dot, on_dot_clicked, LV_EVENT_CLICKED,
+                                (void *)(uintptr_t)i);
+        }
+    }
 
-        switch (i) {
-        case 0: update_gauge(0, true); break;
-        case 1: update_chart(0, true); break;
-        case 2: update_bar(0, true);   break;
-        case 3: update_led(0, true);   break;
-        default: break;
+    ESP_LOGI(TAG, "Dashboard erstellt: %u Seite(n), %u Widget(s)",
+             cfg->page_count, (unsigned)s_widget_count);
+}
+
+/* ── Laufzeit-Update ──────────────────────────────────────────────────────── */
+void dashboard_tick(void)
+{
+    if (!s_cfg) return;
+
+    can_value_event_t evt;
+    while (xQueueReceive(s_queue, &evt, 0) == pdTRUE) {
+        if (evt.signal_idx >= s_cfg->signal_count) continue;
+        s_last_update_us[evt.signal_idx] = evt.timestamp_us;
+        s_stale_flag[evt.signal_idx]     = false;
+
+        for (size_t i = 0; i < s_widget_count; i++) {
+            if (s_widgets[i].signal_idx == evt.signal_idx)
+                s_widgets[i].desc->update(s_widgets[i].obj, evt.value);
+        }
+    }
+
+    int64_t now = esp_timer_get_time();
+    for (uint8_t s = 0; s < s_cfg->signal_count; s++) {
+        uint32_t to = s_cfg->signals[s].timeout_ms;
+        if (to == 0 || s_stale_flag[s] || s_last_update_us[s] == 0) continue;
+        if ((now - s_last_update_us[s]) <= (int64_t)to * 1000) continue;
+
+        s_stale_flag[s] = true;   /* Übergang in Stale nur einmal anwenden */
+        for (size_t i = 0; i < s_widget_count; i++) {
+            if (s_widgets[i].signal_idx == s)
+                s_widgets[i].desc->set_stale(s_widgets[i].obj, true);
         }
     }
 }

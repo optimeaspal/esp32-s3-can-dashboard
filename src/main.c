@@ -1,127 +1,98 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/task.h"
+#include "lvgl.h"
+#include <stdio.h>
+#include <assert.h>
 
 #include "hal/waveshare_rgb_lcd_port.h"
+#include "hal/waveshare_sd_port.h"
 #include "hal/lvgl_port.h"
-#include "app/can_signal.h"
+#include "app/config_types.h"
+#include "app/config_loader.h"
 #include "app/can_dispatcher.h"
 #include "app/can_simulator.h"
 #include "ui/dashboard.h"
 
 static const char *TAG = "main";
 
-// ── CAN-Signaltabelle (POC: statisch, 4 Signale für je ein Widget-Typ) ────────
-//
-// Anpassung für eigene CAN-Frames:
-//   - can_id, byte_offset, byte_length, scale, offset, min_value, max_value ändern
-//   - timeout_ms = 0 deaktiviert Stale-Erkennung für das Signal
-//
-const can_signal_t can_signals[] = {
-    // Signal 0 → Gauge: Drehzahl 0..6000 RPM (simuliert)
-    {
-        .can_id        = 0x102,
-        .extended_id   = false,
-        .byte_offset   = 0,
-        .byte_length   = 2,
-        .little_endian = true,
-        .is_signed     = false,
-        .is_simulated  = true,
-        .scale         = 1.0f,
-        .offset        = 0.0f,
-        .min_value     = 0.0f,
-        .max_value     = 6000.0f,
-        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name          = "RPM",
-        .unit          = "1/min",
-    },
-    // Signal 1 → Chart: Temperatur – IEEE-754 float, 32 Bit, Little-Endian (CAN ID 0x2A)
-    {
-        .can_id        = 0x02A,
-        .extended_id   = false,
-        .byte_offset   = 0,
-        .byte_length   = 4,
-        .little_endian = true,
-        .is_signed     = false,
-        .is_float      = true,
-        .is_simulated  = false,
-        .scale         = 1.0f,
-        .offset        = 0.0f,
-        .min_value     = 0.0f,
-        .max_value     = 100.0f,
-        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name          = "Temperatur",
-        .unit          = "C",
-    },
-    // Signal 2 → Bar: Kraftstoffstand 0..100% (simuliert)
-    {
-        .can_id        = 0x103,
-        .extended_id   = false,
-        .byte_offset   = 0,
-        .byte_length   = 1,
-        .little_endian = true,
-        .is_signed     = false,
-        .is_simulated  = true,
-        .scale         = 100.0f / 255.0f,
-        .offset        = 0.0f,
-        .min_value     = 0.0f,
-        .max_value     = 100.0f,
-        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name          = "Kraftstoff",
-        .unit          = "%",
-    },
-    // Signal 3 → LED: Rechteck 0/1 – 1=ON (CAN ID 0x2B)
-    {
-        .can_id        = 0x02B,
-        .extended_id   = false,
-        .byte_offset   = 0,
-        .byte_length   = 1,
-        .little_endian = true,
-        .is_signed     = false,
-        .is_simulated  = false,
-        .scale         = 1.0f,
-        .offset        = 0.0f,
-        .min_value     = 0.0f,
-        .max_value     = 1.0f,
-        .timeout_ms    = CONFIG_CAN_SIGNAL_STALE_MS,
-        .name          = "Status",
-        .unit          = "",
-    },
-};
-const size_t can_signal_count = sizeof(can_signals) / sizeof(can_signals[0]);
+/* Statisch: müssen für die gesamte Laufzeit gültig bleiben. */
+static dashboard_config_t s_cfg;
+static char               s_json_buf[16384];
+
+/* Zeigt eine Fehlermeldung mittig auf dem Display (FR-009/FR-010). */
+static void show_error_screen(const char *msg)
+{
+    lvgl_port_lock(-1);
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x300000), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    lv_obj_t *label = lv_label_create(scr);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(label, LV_HOR_RES - 80);
+    lv_label_set_text(label, msg);
+    lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+    lv_obj_center(label);
+    lvgl_port_unlock();
+
+    ESP_LOGE(TAG, "%s", msg);
+}
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "ESP32-S3 CAN Dashboard – Start");
+    ESP_LOGI(TAG, "ESP32-S3 CAN Dashboard – Start (JSON-Konfiguration)");
 
-    // Shared Queue: CAN-Dispatcher → Dashboard
-    QueueHandle_t event_queue = xQueueCreate(
-        CONFIG_CAN_RX_QUEUE_LEN, sizeof(can_value_event_t));
-    assert(event_queue);
-
-    // Display + LVGL initialisieren, Backlight + CAN-Mux via CH422G setzen
-    // (alle CH422G-Schreibzugriffe VOR Start des LVGL-Timers, kein I2C-Race mit GT911)
+    /* Display + LVGL initialisieren, Backlight + CAN-Mux via CH422G setzen
+     * (alle CH422G-Schreibzugriffe VOR Start des LVGL-Timers). */
     ESP_ERROR_CHECK(waveshare_rgb_lcd_init());
     ESP_ERROR_CHECK(waveshare_rgb_lcd_bl_on());
     ESP_ERROR_CHECK(waveshare_rgb_lcd_can_mux_enable());
 
-    // Dashboard-Screen erstellen (innerhalb LVGL-Mutex)
+    /* SD-Karte mounten (muss NACH rgb_lcd_init erfolgen – CH422G ist dann bereit). */
+    esp_err_t rc = waveshare_sd_port_init();
+    if (rc != ESP_OK) {
+        show_error_screen("SD-Karte nicht gefunden.\n"
+                          "Bitte FAT32-Karte mit dashboard.json einlegen und neu starten.");
+        return;
+    }
+
+    /* dashboard.json lesen */
+    size_t len = 0;
+    rc = waveshare_sd_read_file(CONFIG_DASHBOARD_JSON_PATH, s_json_buf, sizeof(s_json_buf), &len);
+    if (rc != ESP_OK) {
+        show_error_screen("SD: dashboard.json nicht gefunden oder zu gross.");
+        return;
+    }
+
+    /* JSON parsen */
+    char err[160] = {0};
+    rc = config_loader_parse(s_json_buf, &s_cfg, err, sizeof(err));
+    if (rc != ESP_OK) {
+        char msg[224];
+        snprintf(msg, sizeof(msg), "Konfigurationsfehler:\n%s", err);
+        show_error_screen(msg);
+        return;
+    }
+    ESP_LOGI(TAG, "Konfiguration geladen: %u Signale, %u Seiten",
+             s_cfg.signal_count, s_cfg.page_count);
+
+    /* Shared Queue: CAN/Simulator → Dashboard */
+    QueueHandle_t event_queue = xQueueCreate(CONFIG_CAN_RX_QUEUE_LEN, sizeof(can_value_event_t));
+    assert(event_queue);
+
+    /* Dashboard aufbauen + periodischen Tick registrieren (innerhalb LVGL-Mutex) */
     lvgl_port_lock(-1);
-    dashboard_create(event_queue, can_signal_count);
+    dashboard_create(&s_cfg, event_queue);
+    lv_timer_create((lv_timer_cb_t)dashboard_tick, 50, NULL);
     lvgl_port_unlock();
 
-    // LVGL-Timer registrieren: dashboard_tick() aufrufen
-    lvgl_port_lock(-1);
-    lv_timer_create(
-        (lv_timer_cb_t)dashboard_tick, // LVGL ruft dashboard_tick() periodisch auf
-        50,                            // alle 50 ms
-        NULL);
-    lvgl_port_unlock();
-
-    // Simulator für is_simulated-Signale + Dispatcher für echte CAN-Signale
-    ESP_ERROR_CHECK(can_simulator_start(can_signals, can_signal_count, event_queue));
-    ESP_ERROR_CHECK(can_dispatcher_start(can_signals, can_signal_count, event_queue));
+#if CONFIG_CAN_SIMULATOR_ENABLE
+    ESP_ERROR_CHECK(can_simulator_start(s_cfg.signals, s_cfg.signal_count, event_queue));
+#endif
+    ESP_ERROR_CHECK(can_dispatcher_start(s_cfg.signals, s_cfg.signal_count, event_queue));
 
     ESP_LOGI(TAG, "Initialisierung abgeschlossen – Dashboard läuft");
-    // Haupttask beendet sich; LVGL-Task und CAN-Task laufen weiter
 }

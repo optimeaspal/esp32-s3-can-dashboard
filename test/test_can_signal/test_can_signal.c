@@ -9,8 +9,8 @@
 #include "unity.h"
 
 // Direkte Include-Pfad-Anpassung für native Tests
-#include "../src/app/can_signal.h"
-#include "../src/app/can_signal.c"
+#include "../../src/app/can_signal.h"
+#include "../../src/app/can_signal.c"
 
 void setUp(void) {}
 void tearDown(void) {}

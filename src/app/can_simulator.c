@@ -15,27 +15,25 @@ typedef struct {
 } sim_ctx_t;
 
 /*
- * Liefert einen synthetischen physikalischen Wert pro Signal-Index.
+ * Liefert einen synthetischen physikalischen Wert für ein beliebiges Signal.
+ * Bereichsbasiert (min..max aus der JSON-Konfiguration), damit jede dynamisch
+ * geladene Signaldefinition animiert wird. Die Periode variiert pro Index für
+ * optisch unterscheidbare Verläufe.
+ *
  * t = verstrichene Zeit in Sekunden seit Board-Start.
  */
-static float sim_value(uint8_t idx, float t)
+static float sim_value(const can_signal_t *s, uint8_t idx, float t)
 {
-    switch (idx) {
-        case 0: // RPM: Sinuswelle 800..5500, Periode 10 s
-            return 800.0f + 2350.0f * (1.0f + sinf(2.0f * (float)M_PI * t / 10.0f));
+    float span   = s->max_value - s->min_value;
+    float period = 8.0f + (float)(idx % 4) * 4.0f;   /* 8/12/16/20 s */
+    float phase  = (float)idx * 0.7f;
 
-        case 1: // Motortemperatur: Sägezahn 20..110 °C, Periode 30 s
-            return 20.0f + 90.0f * fmodf(t / 30.0f, 1.0f);
+    /* Binäre Signale (Bereich <= 1): als Rechteck-Toggle darstellen. */
+    if (span <= 1.0f)
+        return ((int)(t / 5.0f + idx) % 2) ? s->max_value : s->min_value;
 
-        case 2: // Kraftstoff: fallend 100..0 %, Periode 60 s
-            return 100.0f * (1.0f - fmodf(t / 60.0f, 1.0f));
-
-        case 3: // Warnung: Toggle alle 5 s
-            return ((int)(t / 5.0f) % 2) ? 1.0f : 0.0f;
-
-        default:
-            return 0.0f;
-    }
+    float frac = 0.5f * (1.0f + sinf(2.0f * (float)M_PI * t / period + phase));
+    return s->min_value + span * frac;
 }
 
 static void sim_task(void *arg)
@@ -53,7 +51,7 @@ static void sim_task(void *arg)
             if (!ctx->signals[i].is_simulated)
                 continue;
 
-            float v = sim_value(i, t);
+            float v = sim_value(&ctx->signals[i], i, t);
 
             // Auf Signal-Bereich begrenzen
             if (v < ctx->signals[i].min_value) v = ctx->signals[i].min_value;
