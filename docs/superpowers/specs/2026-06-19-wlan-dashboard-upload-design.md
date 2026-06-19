@@ -29,6 +29,10 @@ implementiert sie aber **nicht**:
 - **Touchscreen-Systemseite** zum Konfigurieren/Statusanzeigen.
 - **WLAN-Status-Icon** in einer Dashboard-Ecke (mit Sprung auf Detailseite).
   `wifi_port` bietet dafür eine abfragbare Statusfunktion.
+- **Adress-Anzeige am Display** (Hostname/IP als Banner oder Statuszeile) — kommt
+  zusammen mit der Detailseite/dem Status-Icon. In v1 ist der Primärzugang
+  `dashboard.local` (mDNS); als Rückfall wird die IP beim Verbinden in den
+  **seriellen Log** geschrieben.
 - **Authentifizierung** der Upload-Seite — v1 vertraut dem lokalen WLAN als
   Grenze; Passwortschutz ist additiv nachrüstbar.
 
@@ -53,6 +57,14 @@ Das Gerät bucht sich in ein vorhandenes WLAN ein (STA). Die Zugangsdaten liegen
 als `wifi.json` auf der SD: ein Array von `{"ssid":..., "password":...}`, das
 der Reihe nach durchprobiert wird. Format konsistent zur `dashboard.json`
 (cJSON ist bereits im Projekt). Keine Credentials in Kconfig/Flash.
+
+### 5. mDNS als Primärzugang
+
+Nach erfolgreicher Verbindung registriert das Gerät einen mDNS-Hostnamen
+(`dashboard.local`), sodass der Browser ohne Kenntnis der IP zugreifen kann.
+Die IP wird zusätzlich in den seriellen Log geschrieben (Rückfall, falls mDNS
+am Client nicht verfügbar ist). Eine Adress-Anzeige am Display ist v1 nicht
+Teil (s. Nicht-Ziele).
 
 ### 3. Validieren vor Übernehmen
 
@@ -124,7 +136,7 @@ HTTP 200 "OK, Neustart…"  ─►  Antwort senden  ─►  esp_restart()
 ### WiFi-Verbindung (Hintergrund-Task)
 
 - `wifi.json` lesen → AP-Liste. Fehlt/leer → Webserver bleibt aus, Dashboard läuft, Log-Hinweis.
-- APs der Reihe nach mit Timeout. Erster Erfolg gewinnt → IP loggen, optional mDNS (`dashboard.local`).
+- APs der Reihe nach mit Timeout. Erster Erfolg gewinnt → IP in seriellen Log schreiben, mDNS-Hostname `dashboard.local` registrieren.
 - Kein AP erreichbar → Log-Warnung + periodischer Retry. Dashboard unbeeinträchtigt.
 
 ## Fehlerbehandlung
@@ -155,5 +167,4 @@ Unity-Tests vor der Implementierung. ESP-IDF-Glue wird per HW-Quickstart geprüf
 - Multipart-Parsing in `esp_http_server`: einfacher Raw-Body-POST vs.
   `multipart/form-data`. Tendenz: simpler `POST` mit Rohinhalt für v1, das
   HTML-Formular sendet entsprechend.
-- mDNS optional (`dashboard.local`) — Komfort, kein Muss für v1.
 - Genaues `wifi.json`-Schema (Feldnamen, optionale Felder) im Plan festzurren.
