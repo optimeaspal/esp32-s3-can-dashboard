@@ -53,8 +53,15 @@ void dashboard_create(const dashboard_config_t *cfg, QueueHandle_t event_queue)
     s_cfg          = cfg;
     s_queue        = event_queue;
     s_widget_count = 0;
-    memset(s_last_update_us, 0, sizeof(s_last_update_us));
     memset(s_stale_flag, 0, sizeof(s_stale_flag));
+
+    /* Stale-Uhr ab Dashboard-Start laufen lassen: ein Signal, das nie einen
+     * Wert erhält (z. B. kein Simulator, keine CAN-Quelle), wird so nach
+     * timeout_ms ausgegraut. Init mit 0 würde diese Signale dauerhaft als
+     * "noch nie geprüft" überspringen. */
+    int64_t boot_us = esp_timer_get_time();
+    for (uint8_t s = 0; s < cfg->signal_count; s++)
+        s_last_update_us[s] = boot_us;
 
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, COLOR_BG, 0);
@@ -133,7 +140,7 @@ void dashboard_tick(void)
     int64_t now = esp_timer_get_time();
     for (uint8_t s = 0; s < s_cfg->signal_count; s++) {
         uint32_t to = s_cfg->signals[s].timeout_ms;
-        if (to == 0 || s_stale_flag[s] || s_last_update_us[s] == 0) continue;
+        if (to == 0 || s_stale_flag[s]) continue;
         if ((now - s_last_update_us[s]) <= (int64_t)to * 1000) continue;
 
         s_stale_flag[s] = true;   /* Übergang in Stale nur einmal anwenden */

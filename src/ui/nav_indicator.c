@@ -1,7 +1,8 @@
 #include "nav_indicator.h"
 
-#define DOT_SIZE      12
-#define DOT_GAP        8
+#define DOT_SIZE      16
+#define DOT_GAP       12
+#define DOT_HIT_PAD   18   /* erweitert die touchbare Fläche je Seite (16+2*18=52 px) */
 #define COLOR_ACTIVE   lv_color_hex(0xECF0F1)
 #define COLOR_INACTIVE lv_color_hex(0x555577)
 
@@ -28,6 +29,7 @@ lv_obj_t *nav_indicator_create(lv_obj_t *parent, uint8_t page_count)
         lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(dot, (i == 0) ? COLOR_ACTIVE : COLOR_INACTIVE, 0);
+        lv_obj_set_ext_click_area(dot, DOT_HIT_PAD);  /* komfortable Touch-Fläche */
     }
     return bar;
 }

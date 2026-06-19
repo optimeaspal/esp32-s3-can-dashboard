@@ -53,7 +53,11 @@ void arc_update(lv_obj_t *obj, float value)
     float v = wc_clamp(value, ctx->base.min, ctx->base.max);
     lv_obj_set_style_arc_color(ctx->arc, wc_value_color(&ctx->base, v), LV_PART_INDICATOR);
     lv_arc_set_value(ctx->arc, (int16_t)v);
-    lv_label_set_text_fmt(ctx->value_label, "%.0f %s", v, ctx->unit);
+    /* newlib-snprintf statt lv_label_set_text_fmt: LVGLs internes printf kann %f
+     * nur bei CONFIG_LV_SPRINTF_USE_FLOAT und crasht sonst. */
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.0f %s", v, ctx->unit);
+    lv_label_set_text(ctx->value_label, buf);
 }
 
 void arc_stale(lv_obj_t *obj, bool stale)

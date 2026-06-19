@@ -1,0 +1,163 @@
+{
+  "version": "1.0",
+  "signals": [
+    {
+      "name": "RPM",
+      "can_id": "0x102",
+      "byte_offset": 0,
+      "byte_length": 2,
+      "endianness": "little",
+      "signed": false,
+      "scale": 1.0,
+      "offset": 0.0,
+      "unit": "1/min",
+      "min": 0.0,
+      "max": 6000.0,
+      "stale_ms": 2000,
+      "simulated": true
+    },
+    {
+      "name": "Temp",
+      "can_id": "0x02A",
+      "byte_offset": 0,
+      "byte_length": 4,
+      "endianness": "little",
+      "float": true,
+      "unit": "C",
+      "min": 0.0,
+      "max": 120.0,
+      "stale_ms": 3000,
+      "simulated": true
+    },
+    {
+      "name": "Kraftstoff",
+      "can_id": "0x103",
+      "byte_offset": 0,
+      "byte_length": 1,
+      "endianness": "little",
+      "scale": 0.392,
+      "offset": 0.0,
+      "unit": "%",
+      "min": 0.0,
+      "max": 100.0,
+      "stale_ms": 5000,
+      "simulated": true
+    },
+    {
+      "name": "Druck",
+      "can_id": "0x104",
+      "byte_offset": 0,
+      "byte_length": 2,
+      "endianness": "little",
+      "scale": 0.01,
+      "offset": 0.0,
+      "unit": "bar",
+      "min": 0.0,
+      "max": 10.0,
+      "stale_ms": 2000,
+      "simulated": true
+    },
+    {
+      "name": "Status",
+      "can_id": "0x02B",
+      "byte_offset": 0,
+      "byte_length": 1,
+      "endianness": "little",
+      "unit": "",
+      "min": 0.0,
+      "max": 1.0,
+      "stale_ms": 2000,
+      "simulated": true
+    }
+  ],
+  "pages": [
+    {
+      "title": "Motor",
+      "widgets": [
+        {
+          "type": "gauge",
+          "x": 15, "y": 15,
+          "width": 300, "height": 300,
+          "signal": "RPM",
+          "title": "Drehzahl",
+          "normal_color": "#00C800",
+          "warning_color": "#FF3300",
+          "warning_threshold": 5000.0,
+          "background_color": "#14142A"
+        },
+        {
+          "type": "chart",
+          "x": 330, "y": 15,
+          "width": 455, "height": 200,
+          "signal": "Temp",
+          "title": "Temperatur",
+          "normal_color": "#00AAFF",
+          "warning_color": "#FF3300",
+          "warning_threshold": 90.0,
+          "background_color": "#14142A"
+        },
+        {
+          "type": "arc",
+          "x": 330, "y": 230,
+          "width": 190, "height": 190,
+          "signal": "Kraftstoff",
+          "title": "Tank",
+          "normal_color": "#FFC400",
+          "background_color": "#14142A"
+        },
+        {
+          "type": "led",
+          "x": 600, "y": 255,
+          "width": 140, "height": 140,
+          "signal": "Status",
+          "title": "Status",
+          "normal_color": "#00FF66"
+        }
+      ]
+    },
+    {
+      "title": "Messwerte",
+      "widgets": [
+        {
+          "type": "bar",
+          "x": 20, "y": 30,
+          "width": 760, "height": 80,
+          "signal": "Druck",
+          "title": "Oeldruck",
+          "normal_color": "#00C8C8",
+          "warning_color": "#FF3300",
+          "warning_threshold": 8.0,
+          "background_color": "#14142A"
+        },
+        {
+          "type": "bar",
+          "x": 20, "y": 140,
+          "width": 760, "height": 80,
+          "signal": "Kraftstoff",
+          "title": "Tankfuellung",
+          "normal_color": "#00C800",
+          "background_color": "#14142A"
+        },
+        {
+          "type": "label",
+          "x": 20, "y": 250,
+          "width": 370, "height": 110,
+          "signal": "Temp",
+          "title": "Temperatur",
+          "normal_color": "#FFFFFF",
+          "background_color": "#14142A"
+        },
+        {
+          "type": "label",
+          "x": 410, "y": 250,
+          "width": 370, "height": 110,
+          "signal": "RPM",
+          "title": "Drehzahl",
+          "normal_color": "#FFD0A0",
+          "background_color": "#14142A"
+        }
+      ]
+    }
+  ],
+  "tx_commands": []
+}

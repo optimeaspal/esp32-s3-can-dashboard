@@ -35,7 +35,12 @@ void label_update(lv_obj_t *obj, float value)
     if (!ctx) return;
     float v = wc_clamp(value, ctx->base.min, ctx->base.max);
     lv_obj_set_style_text_color(ctx->value_label, wc_value_color(&ctx->base, v), 0);
-    lv_label_set_text_fmt(ctx->value_label, "%.1f %s", v, ctx->unit);
+    /* Mit newlib-snprintf formatieren statt lv_label_set_text_fmt: LVGLs internes
+     * printf kann %f nur bei CONFIG_LV_SPRINTF_USE_FLOAT und crasht sonst (das %f
+     * verschiebt die va_list, das folgende %s liest einen Müll-Zeiger). */
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.1f %s", v, ctx->unit);
+    lv_label_set_text(ctx->value_label, buf);
 }
 
 void label_stale(lv_obj_t *obj, bool stale)

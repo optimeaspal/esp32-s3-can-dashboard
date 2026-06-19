@@ -50,3 +50,9 @@ CONFIG_LV_USE_DEMO_BENCHMARK=y
 
 # Log: keine ANSI-Farbcodes (VS Code Output-Panel unterstützt kein ANSI)
 CONFIG_LOG_COLORS=n
+
+# FATFS: Long Filenames aktivieren (Default ist 8.3 → "dashboard.json" mit
+# 9-Zeichen-Namen wäre sonst nicht auffindbar). LFN-Puffer im Heap, nicht auf
+# dem Stack, da der Mount-Task einen begrenzten Stack hat.
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=255
