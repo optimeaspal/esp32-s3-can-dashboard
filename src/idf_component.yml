@@ -9,3 +9,6 @@ dependencies:
 
   # Kapazitiver Touch-Controller GT911
   esp_lcd_touch_gt911: "^1"
+
+  # mDNS: Gerät unter <hostname>.local erreichbar machen
+  espressif/mdns: "^1.2"
