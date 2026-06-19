@@ -79,6 +79,20 @@ void test_invalid_syntax_is_error(void)
     TEST_ASSERT_EQUAL_INT(ESP_ERR_INVALID_ARG, rc);
 }
 
+void test_too_many_networks_is_error(void)
+{
+    const char *json = load_fixture("wifi_too_many.json");
+    esp_err_t rc = wifi_credentials_parse(json, &g_wc, g_err, sizeof(g_err));
+    TEST_ASSERT_EQUAL_INT(ESP_ERR_INVALID_SIZE, rc);
+}
+
+void test_all_ssidless_is_error(void)
+{
+    const char *json = load_fixture("wifi_all_ssidless.json");
+    esp_err_t rc = wifi_credentials_parse(json, &g_wc, g_err, sizeof(g_err));
+    TEST_ASSERT_EQUAL_INT(ESP_ERR_INVALID_ARG, rc);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -87,5 +101,7 @@ int main(void)
     RUN_TEST(test_default_hostname_when_missing);
     RUN_TEST(test_empty_networks_is_error);
     RUN_TEST(test_invalid_syntax_is_error);
+    RUN_TEST(test_too_many_networks_is_error);
+    RUN_TEST(test_all_ssidless_is_error);
     return UNITY_END();
 }

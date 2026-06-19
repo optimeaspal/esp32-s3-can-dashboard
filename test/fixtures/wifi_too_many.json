@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "networks": [
+    { "ssid": "Net1", "password": "pw" },
+    { "ssid": "Net2", "password": "pw" },
+    { "ssid": "Net3", "password": "pw" },
+    { "ssid": "Net4", "password": "pw" },
+    { "ssid": "Net5", "password": "pw" },
+    { "ssid": "Net6", "password": "pw" },
+    { "ssid": "Net7", "password": "pw" },
+    { "ssid": "Net8", "password": "pw" },
+    { "ssid": "Net9", "password": "pw" }
+  ]
+}
