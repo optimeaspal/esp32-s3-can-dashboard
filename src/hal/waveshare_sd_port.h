@@ -41,6 +41,21 @@ esp_err_t waveshare_sd_port_init(void);
 esp_err_t waveshare_sd_read_file(const char *path, char *buf,
                                  size_t max_len, size_t *out_len);
 
+/*
+ * Schreibt buf (len Bytes) vollständig in eine Datei (überschreibt vorhandene).
+ *
+ * @return ESP_OK bei Erfolg, ESP_FAIL bei Schreib-/Öffnen-Fehler.
+ */
+esp_err_t waveshare_sd_write_file(const char *path, const char *buf, size_t len);
+
+/*
+ * Benennt eine Datei um (atomar ersetzen). Ein vorhandenes Ziel wird zuvor
+ * entfernt (FATFS-rename schlägt sonst fehl, wenn das Ziel existiert).
+ *
+ * @return ESP_OK bei Erfolg, ESP_FAIL sonst.
+ */
+esp_err_t waveshare_sd_rename(const char *from_path, const char *to_path);
+
 #ifdef __cplusplus
 }
 #endif

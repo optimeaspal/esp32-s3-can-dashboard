@@ -139,3 +139,30 @@ esp_err_t waveshare_sd_read_file(const char *path, char *buf,
     ESP_LOGI(TAG, "%zu Bytes aus %s gelesen", n, path);
     return ESP_OK;
 }
+
+esp_err_t waveshare_sd_write_file(const char *path, const char *buf, size_t len)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        ESP_LOGE(TAG, "Kann %s nicht zum Schreiben öffnen", path);
+        return ESP_FAIL;
+    }
+    size_t written = fwrite(buf, 1, len, f);
+    fclose(f);
+    if (written != len) {
+        ESP_LOGE(TAG, "Schreibfehler %s (%u/%u Bytes)",
+                 path, (unsigned)written, (unsigned)len);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+esp_err_t waveshare_sd_rename(const char *from_path, const char *to_path)
+{
+    remove(to_path);  /* FATFS: rename schlägt fehl, wenn Ziel existiert */
+    if (rename(from_path, to_path) != 0) {
+        ESP_LOGE(TAG, "rename %s -> %s fehlgeschlagen", from_path, to_path);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
