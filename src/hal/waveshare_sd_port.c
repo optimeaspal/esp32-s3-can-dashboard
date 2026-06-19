@@ -142,6 +142,8 @@ esp_err_t waveshare_sd_read_file(const char *path, char *buf,
 
 esp_err_t waveshare_sd_write_file(const char *path, const char *buf, size_t len)
 {
+    if (!path || !buf) return ESP_ERR_INVALID_ARG;
+
     FILE *f = fopen(path, "wb");
     if (!f) {
         ESP_LOGE(TAG, "Kann %s nicht zum Schreiben öffnen", path);
