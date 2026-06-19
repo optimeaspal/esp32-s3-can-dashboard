@@ -74,9 +74,10 @@ static void network_task(void *arg)
 
     if (waveshare_wifi_port_start(&creds,
             CONFIG_DASHBOARD_WIFI_CONNECT_TIMEOUT_MS) == ESP_OK) {
-        web_server_start(CONFIG_DASHBOARD_HTTP_PORT);
-        ESP_LOGI(TAG, "Upload bereit: http://%s.local  (IP %s)",
-                 creds.hostname, waveshare_wifi_port_get_ip());
+        if (web_server_start(CONFIG_DASHBOARD_HTTP_PORT) == ESP_OK) {
+            ESP_LOGI(TAG, "Upload bereit: http://%s.local  (IP %s)",
+                     creds.hostname, waveshare_wifi_port_get_ip());
+        }
     }
     vTaskDelete(NULL);
 }

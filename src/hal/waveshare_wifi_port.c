@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "mdns.h"
+#include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include <string.h>
@@ -62,8 +63,8 @@ static esp_err_t wifi_init_once(void)
 static bool try_connect(const wifi_network_t *net, uint32_t timeout_ms)
 {
     wifi_config_t wc = {0};
-    strncpy((char *)wc.sta.ssid, net->ssid, sizeof(wc.sta.ssid));
-    strncpy((char *)wc.sta.password, net->password, sizeof(wc.sta.password));
+    strncpy((char *)wc.sta.ssid, net->ssid, sizeof(wc.sta.ssid) - 1);
+    strncpy((char *)wc.sta.password, net->password, sizeof(wc.sta.password) - 1);
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wc));
 
     xEventGroupClearBits(s_wifi_events, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
@@ -79,7 +80,7 @@ static bool try_connect(const wifi_network_t *net, uint32_t timeout_ms)
     return false;
 }
 
-static void start_mdns(const char *hostname)
+static void start_mdns(const char *hostname, uint16_t port)
 {
     if (mdns_init() != ESP_OK) {
         ESP_LOGW(TAG, "mDNS-Init fehlgeschlagen");
@@ -87,7 +88,7 @@ static void start_mdns(const char *hostname)
     }
     mdns_hostname_set(hostname);
     mdns_instance_name_set("CAN Dashboard");
-    mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
+    mdns_service_add(NULL, "_http", "_tcp", port, NULL, 0);
     ESP_LOGI(TAG, "mDNS aktiv: http://%s.local", hostname);
 }
 
@@ -105,7 +106,7 @@ esp_err_t waveshare_wifi_port_start(const wifi_credentials_t *creds,
             s_status = WIFI_PORT_CONNECTED;
             ESP_LOGI(TAG, "Verbunden mit '%s', IP %s",
                      creds->networks[i].ssid, s_ip);
-            start_mdns(creds->hostname);
+            start_mdns(creds->hostname, CONFIG_DASHBOARD_HTTP_PORT);
             return ESP_OK;
         }
         ESP_LOGW(TAG, "'%s' nicht erreichbar", creds->networks[i].ssid);
