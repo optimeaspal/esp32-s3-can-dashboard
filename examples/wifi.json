@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "hostname": "dashboard",
+  "networks": [
+    { "ssid": "MEIN-WLAN", "password": "BITTE-AENDERN" }
+  ]
+}

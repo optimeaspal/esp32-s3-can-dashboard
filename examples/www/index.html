@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAN Dashboard – Konfiguration</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>CAN Dashboard</h1>
+    <section class="card">
+      <h2>dashboard.json hochladen</h2>
+      <p>Datei wählen und hochladen. Das Gerät prüft die Konfiguration und
+         startet bei Erfolg neu.</p>
+      <input type="file" id="file" accept=".json,application/json">
+      <button id="upload">Hochladen</button>
+      <pre id="status"></pre>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
