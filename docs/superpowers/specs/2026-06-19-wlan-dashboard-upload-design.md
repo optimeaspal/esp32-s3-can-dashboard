@@ -125,7 +125,7 @@ III: nativ testbare App-Logik; IV: Kconfig; V: LVGL-Thread-Safety).
 
 | Modul | Layer | Aufgabe | ESP-IDF-abhängig |
 |-------|-------|---------|------------------|
-| `hal/waveshare_wifi_port.c/h` | HAL | WiFi-STA verbinden (`esp_wifi`/`esp_netif`/`nvs`), AP-Liste der Reihe nach mit Timeout durchprobieren, periodischer Retry. Abfragbarer Status (`wifi_port_get_status()`). AP-Modus-Funktion vorgesehen, v1 ungenutzt. | ja (gekapselt) |
+| `hal/waveshare_wifi_port.c/h` | HAL | WiFi-STA verbinden (`esp_wifi`/`esp_netif`/`nvs`), AP-Liste der Reihe nach mit Timeout durchprobieren (**ein Durchlauf beim Boot, kein periodischer Retry in v1**). Abfragbarer Status (`wifi_port_get_status()`). AP-Modus-Funktion vorgesehen, v1 ungenutzt. | ja (gekapselt) |
 | `hal/web_server.c/h` | HAL | `esp_http_server` kapseln: statische Assets von SD ausliefern (`/www/*`), Flash-Fallback-HTML, `POST /api/config`-Handler | ja (gekapselt) |
 | `app/wifi_credentials.c/h` | App | `wifi.json` von SD parsen → Liste `{ssid, password}`. Reines cJSON-Parsing, **nativ testbar** | nein |
 
@@ -139,7 +139,7 @@ III: nativ testbare App-Logik; IV: Kconfig; V: LVGL-Thread-Safety).
 - `CONFIG_DASHBOARD_WIFI_ENABLE` — Feature an/aus (Gerät ohne WLAN voll funktionsfähig; Feature ist additiv).
 - HTTP-Port (Default 80).
 - `/www`-Basispfad auf SD.
-- WLAN-Verbindungs-Timeout und Retry-Intervall.
+- WLAN-Verbindungs-Timeout pro Netzwerk.
 
 ### Boot-Reihenfolge (Performance: Dashboard < 3 s)
 
@@ -175,14 +175,14 @@ HTTP 200 "OK, Neustart…"  ─►  Antwort senden  ─►  esp_restart()
 
 - `wifi.json` lesen → AP-Liste. Fehlt/leer → Webserver bleibt aus, Dashboard läuft, Log-Hinweis.
 - APs der Reihe nach mit Timeout. Erster Erfolg gewinnt → IP in seriellen Log schreiben, mDNS-Hostname `dashboard.local` registrieren.
-- Kein AP erreichbar → Log-Warnung + periodischer Retry. Dashboard unbeeinträchtigt.
+- Kein AP erreichbar → Log-Warnung, Task endet. Dashboard läuft unbeeinträchtigt weiter; Upload steht erst nach einem Neustart wieder zur Verfügung (kein periodischer Retry in v1 — `wifi_init_once` ist nicht idempotent; Retry wäre eine spätere Erweiterung).
 
 ## Fehlerbehandlung
 
 | Situation | Reaktion |
 |-----------|----------|
 | `wifi.json` fehlt/leer | Webserver aus, Dashboard läuft, Log-Hinweis |
-| Kein AP erreichbar | Periodischer Retry, Dashboard läuft |
+| Kein AP erreichbar | Dashboard läuft; Upload erst nach Neustart (kein Retry in v1) |
 | Upload ungültige JSON | HTTP 400 + `config_loader`-Meldung, altes Dashboard bleibt |
 | Upload zu groß (> Limit) | HTTP 413, Abbruch (Limit = `s_json_buf`-Größe, 16 KB) |
 | SD-Schreibfehler | HTTP 500 + Meldung, kein Reboot |

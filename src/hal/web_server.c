@@ -51,6 +51,14 @@ static esp_err_t get_handler(httpd_req_t *req)
         return ESP_OK;
     }
 
+    /* Browser fragt automatisch /favicon.ico an – still mit 204 beantworten,
+     * statt bei jedem Seitenaufruf eine SD-Fehlersuche samt ERROR-Log auszulösen. */
+    if (!strcmp(req->uri, "/favicon.ico")) {
+        httpd_resp_set_status(req, "204 No Content");
+        httpd_resp_send(req, NULL, 0);
+        return ESP_OK;
+    }
+
     char path[160];
     if (!strcmp(req->uri, "/"))
         snprintf(path, sizeof(path), "%s/index.html", WWW_DIR);
