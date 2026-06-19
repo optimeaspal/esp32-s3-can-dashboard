@@ -54,11 +54,49 @@ Das Flash-Fallback nimmt der SD-Abhängigkeit das einzige echte Risiko.
 ### 2. WLAN-Modus STA mit Credential-Liste auf SD
 
 Das Gerät bucht sich in ein vorhandenes WLAN ein (STA). Die Zugangsdaten liegen
-als `wifi.json` auf der SD: ein Array von `{"ssid":..., "password":...}`, das
-der Reihe nach durchprobiert wird. Format konsistent zur `dashboard.json`
-(cJSON ist bereits im Projekt). Keine Credentials in Kconfig/Flash.
+als `wifi.json` auf der SD. Format konsistent zur `dashboard.json` (cJSON ist
+bereits im Projekt). Keine Credentials in Kconfig/Flash.
 
-### 5. mDNS als Primärzugang
+```json
+{
+  "version": "1.0",
+  "hostname": "dashboard",
+  "networks": [
+    { "ssid": "Werkstatt-WLAN",  "password": "geheim123" },
+    { "ssid": "Hotspot-Patrick", "password": "anderesPasswort" }
+  ]
+}
+```
+
+- `networks` — Array, der Reihe nach durchprobiert (erste erreichbare gewinnt).
+- `password` — optional; fehlt/leer → offenes Netz.
+- `hostname` — optional, ergibt den mDNS-Namen (`dashboard` → `dashboard.local`),
+  Default `dashboard`.
+
+**Sicherheit:** Passwörter liegen im Klartext auf der SD. Für ein lokales
+Inbetriebnahme-/Werkstattgerät vertretbar (physischer SD-Zugriff = Vollzugriff);
+Verschlüsselung ist v1 Nicht-Ziel.
+
+### 3. Raw-POST statt multipart/form-data
+
+Der Upload erfolgt als **roher** Request-Body, nicht als `multipart/form-data`.
+`esp_http_server` hat keinen Multipart-Parser; Boundary-Parsing auf dem MCU wäre
+fummelig (Body kommt in Häppchen, Boundaries können über Häppchengrenzen fallen).
+Stattdessen sendet der Browser die Datei direkt:
+
+```js
+// app.js
+await fetch('/api/config', { method: 'POST', body: fileInput.files[0] });
+```
+
+Serverseitig nur `httpd_req_recv()` in einer Schleife → temp-Datei schreiben,
+kein Parsing. Der spätere Web-Konfigurator nutzt denselben `fetch()`-Endpunkt
+für seine generierte JSON. Konsequenz: Die Upload-Seite braucht JavaScript
+(ein reines HTML-`<form>` würde Multipart erzwingen) — unkritisch, da die Seite
+ohnehin JS-fähig ist; auch das Flash-Fallback-HTML enthält diese eine
+`fetch()`-Zeile inline.
+
+### 4. mDNS als Primärzugang
 
 Nach erfolgreicher Verbindung registriert das Gerät einen mDNS-Hostnamen
 (`dashboard.local`), sodass der Browser ohne Kenntnis der IP zugreifen kann.
@@ -66,13 +104,13 @@ Die IP wird zusätzlich in den seriellen Log geschrieben (Rückfall, falls mDNS
 am Client nicht verfügbar ist). Eine Adress-Anzeige am Display ist v1 nicht
 Teil (s. Nicht-Ziele).
 
-### 3. Validieren vor Übernehmen
+### 5. Validieren vor Übernehmen
 
 Ein fehlerhafter Upload darf das Gerät nie unbrauchbar machen. Der Upload landet
 zuerst in `dashboard.json.tmp`, wird mit dem bestehenden `config_loader`
 geparst, und erst bei Erfolg atomar per `rename` zur aktiven `dashboard.json`.
 
-### 4. Reboot statt Live-Reload
+### 6. Reboot statt Live-Reload
 
 Nach erfolgreichem Upload startet das Gerät neu und lädt die JSON über den
 normalen, bereits validierenden Boot-Pfad. Kein riskanter Laufzeit-Abbau der
@@ -164,7 +202,8 @@ Unity-Tests vor der Implementierung. ESP-IDF-Glue wird per HW-Quickstart geprüf
 
 ## Offene Punkte für die Implementierungsplanung
 
-- Multipart-Parsing in `esp_http_server`: einfacher Raw-Body-POST vs.
-  `multipart/form-data`. Tendenz: simpler `POST` mit Rohinhalt für v1, das
-  HTML-Formular sendet entsprechend.
-- Genaues `wifi.json`-Schema (Feldnamen, optionale Felder) im Plan festzurren.
+Alle wesentlichen Entscheidungen sind getroffen. Im Plan zu detaillieren:
+
+- Genaue mDNS-Komponente/Konfiguration (`espressif/mdns` via component manager).
+- Stack-Größe und Priorität des WiFi/Webserver-Hintergrund-Tasks.
+- Chunked-Empfang in `POST /api/config` (Body kommt in Häppchen; Limit 16 KB).
