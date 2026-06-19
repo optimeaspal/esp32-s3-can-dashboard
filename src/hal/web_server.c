@@ -45,6 +45,12 @@ static void reboot_task(void *arg)
 /* GET-Handler für statische Assets + Root mit Flash-Fallback. */
 static esp_err_t get_handler(httpd_req_t *req)
 {
+    /* Path-Traversal verhindern: ".." dürfte sonst /sdcard/www verlassen. */
+    if (strstr(req->uri, "..")) {
+        httpd_resp_send_404(req);
+        return ESP_OK;
+    }
+
     char path[160];
     if (!strcmp(req->uri, "/"))
         snprintf(path, sizeof(path), "%s/index.html", WWW_DIR);
