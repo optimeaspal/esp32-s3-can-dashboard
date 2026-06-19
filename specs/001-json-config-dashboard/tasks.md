@@ -131,7 +131,7 @@ description: "Task list for 001-json-config-dashboard"
 - [X] T035 [P] FR-013 tx_commands-Feld in `src/app/config_loader.c`: `"tx_commands"`-Key via `cJSON_HasObjectItem()` prüfen; `dashboard_config_t.has_tx_commands = true` setzen; kein Fehler, kein Parsing des Inhalts — nach T010
 - [X] T036 [P] Unbekannte Widget-Typen in `src/ui/widget_registry.c`: Wenn `widget_registry_find_by_type()` keinen Treffer findet → `ESP_LOGW("widget_registry", "Unbekannter Typ: %s – übersprungen", type)` und NULL zurückgeben; `dashboard.c` behandelt NULL-Return (Widget wird nicht erstellt, andere bleiben) — nach T018
 - [X] T037 Widget-Wert-Clamping in allen `widget_*_update()`: Wert auf `[signal.min, signal.max]` klemmen bevor LVGL-Wert gesetzt wird; kein Absturz bei Wert außerhalb Bereich — nach T025–T030
-- [ ] T038 Abschlussvalidierung: Quickstart.md Stufe 2 vollständig durchführen (alle 9 Validierungsschritte aus Tabelle); `pio test -e native` grün; Ergebnis in Commit-Message dokumentieren
+- [X] T038 Abschlussvalidierung: Quickstart.md Stufe 2 vollständig durchführen (alle 9 Validierungsschritte aus Tabelle); `pio test -e native` grün; Ergebnis in Commit-Message dokumentieren
 
 ---
 
