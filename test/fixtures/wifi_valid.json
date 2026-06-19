@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "hostname": "dashboard",
+  "networks": [
+    { "ssid": "Werkstatt-WLAN",  "password": "geheim123" },
+    { "ssid": "Hotspot-Patrick", "password": "anderesPasswort" }
+  ]
+}
