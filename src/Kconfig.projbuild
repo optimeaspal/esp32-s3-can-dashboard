@@ -131,4 +131,29 @@ menu "CAN Dashboard Configuration"
             default "/sdcard/dashboard.json"
     endmenu
 
+    menu "WLAN / Upload"
+        config DASHBOARD_WIFI_ENABLE
+            bool "Drahtlosen Upload via WLAN aktivieren"
+            default y
+            help
+                Verbindet sich beim Start (Hintergrund-Task) mit den in
+                /sdcard/wifi.json hinterlegten Netzen und startet einen
+                HTTP-Server zum Hochladen der dashboard.json.
+
+        config DASHBOARD_WIFI_PATH
+            string "Pfad zur WLAN-Konfigurationsdatei auf der SD-Karte"
+            default "/sdcard/wifi.json"
+            depends on DASHBOARD_WIFI_ENABLE
+
+        config DASHBOARD_HTTP_PORT
+            int "HTTP-Server Port"
+            default 80
+            depends on DASHBOARD_WIFI_ENABLE
+
+        config DASHBOARD_WIFI_CONNECT_TIMEOUT_MS
+            int "Verbindungs-Timeout pro Netzwerk (ms)"
+            default 8000
+            depends on DASHBOARD_WIFI_ENABLE
+    endmenu
+
 endmenu
