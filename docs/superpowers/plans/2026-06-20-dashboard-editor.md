@@ -984,8 +984,10 @@ function widgetPreview(w) {
   }
 }
 
-function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 ```
+
+> **Hinweis:** `esc()` wurde bereits in Task 5 (oben bei den `$`/`$$`-Helfern)
+> definiert und escaped `& < > "`. Hier NICHT erneut definieren – einfach nutzen.
 
 - [ ] **Step 4: Eigenschaften-Panel implementieren**
 

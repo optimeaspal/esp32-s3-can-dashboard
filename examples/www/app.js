@@ -9,6 +9,13 @@ let selectedWidget = null;    // Referenz auf das ausgewählte Widget-Objekt
 const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 
+// HTML-Sonderzeichen escapen – nötig, weil Tabelle/Canvas per innerHTML aufgebaut
+// werden und Nutzereingaben (z. B. ein " in can_id) sonst die Zeile zerschießen.
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
 // ── Initiales Laden ────────────────────────────────────────────────────────
 async function init() {
   try {
@@ -116,9 +123,9 @@ function cellInput(col, s, i) {
   const attr = 'data-sig="' + i + '" data-key="' + col.k + '"';
   if (col.t === 'check') return '<input type="checkbox" ' + attr + (v ? ' checked' : '') + '>';
   if (col.t === 'select') return '<select ' + attr + '>' +
-    col.opts.map(o => '<option' + (o === v ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+    col.opts.map(o => '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>';
   const type = col.t === 'number' ? 'number' : 'text';
-  return '<input type="' + type + '" ' + attr + ' value="' + (v == null ? '' : v) + '">';
+  return '<input type="' + type + '" ' + attr + ' value="' + (v == null ? '' : esc(v)) + '">';
 }
 
 // Name eines Widgets, das das Signal nutzt (für Lösch-Schutz); sonst ''.
