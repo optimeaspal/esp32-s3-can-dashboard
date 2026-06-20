@@ -4,6 +4,7 @@
  * HAL: HTTP-Server für den drahtlosen Upload der dashboard.json.
  *   GET  /              → /sdcard/www/index.html  (Fallback: eingebettetes HTML)
  *   GET  /<asset>       → /sdcard/www/<asset>      (app.js, style.css, …)
+ *   GET  /api/config    → aktuelle dashboard.json  (Fallback: leeres Skelett)
  *   POST /api/config    → Raw-Body → temp → validieren → rename → Neustart
  */
 

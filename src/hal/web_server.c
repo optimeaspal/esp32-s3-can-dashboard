@@ -19,6 +19,15 @@ static const char *TAG = "web_server";
 #define TMP_PATH       "/sdcard/dashboard.json.tmp"
 #define DEST_PATH      CONFIG_DASHBOARD_JSON_PATH  /* "/sdcard/dashboard.json"     */
 
+/* Asset-Lesepuffer: editor-core.js + app.js überschreiten die alten 8 KB.
+ * Einzelne www-Dateien dürfen damit bis WWW_FILE_MAX-1 Bytes groß sein. */
+#define WWW_FILE_MAX   (48 * 1024)
+
+/* Skelett, wenn noch keine dashboard.json existiert (Offline-Erststart). */
+static const char SKELETON_JSON[] =
+    "{\"version\":\"1.0\",\"signals\":[],"
+    "\"pages\":[{\"title\":\"Seite 1\",\"widgets\":[]}],\"tx_commands\":[]}";
+
 /* Upload-Puffer + validierender Parse-Scratch. static: nicht auf den Task-Stack. */
 static char               s_upload[UPLOAD_MAX + 1];
 static dashboard_config_t s_validate_cfg;
@@ -65,7 +74,7 @@ static esp_err_t get_handler(httpd_req_t *req)
     else
         snprintf(path, sizeof(path), "%s%.140s", WWW_DIR, req->uri);
 
-    static char filebuf[8192];
+    static char filebuf[WWW_FILE_MAX];
     size_t len = 0;
     esp_err_t rc = waveshare_sd_read_file(path, filebuf, sizeof(filebuf), &len);
 
@@ -82,6 +91,22 @@ static esp_err_t get_handler(httpd_req_t *req)
 
     httpd_resp_set_type(req, mime_for(path));
     return httpd_resp_send(req, filebuf, len);
+}
+
+/* GET /api/config: aktuelle dashboard.json liefern; fehlt sie → Skelett. */
+static esp_err_t get_config_handler(httpd_req_t *req)
+{
+    static char cfgbuf[UPLOAD_MAX + 1];
+    size_t len = 0;
+    esp_err_t rc = waveshare_sd_read_file(DEST_PATH, cfgbuf, sizeof(cfgbuf), &len);
+
+    httpd_resp_set_type(req, "application/json");
+    if (rc == ESP_OK) {
+        return httpd_resp_send(req, cfgbuf, len);
+    }
+    /* Nicht gefunden o. ä.: leeres Skelett, damit der Editor sauber startet. */
+    ESP_LOGI(TAG, "GET /api/config: keine dashboard.json, sende Skelett");
+    return httpd_resp_send(req, SKELETON_JSON, strlen(SKELETON_JSON));
 }
 
 /* POST /api/config: Raw-Body → temp → validieren → rename → Neustart. */
@@ -154,6 +179,12 @@ esp_err_t web_server_start(uint16_t port)
         .handler = post_config_handler,
     };
     httpd_register_uri_handler(server, &post_cfg);
+
+    httpd_uri_t get_cfg = {
+        .uri = "/api/config", .method = HTTP_GET,
+        .handler = get_config_handler,
+    };
+    httpd_register_uri_handler(server, &get_cfg);
 
     httpd_uri_t get_any = {
         .uri = "/*", .method = HTTP_GET,
