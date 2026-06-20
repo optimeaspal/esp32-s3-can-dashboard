@@ -189,10 +189,140 @@ async function saveToDevice() {
 
 function setStatus(msg) { $('#status').textContent = msg; }
 
-// TEMPORÄR (wird in Task 6/7 ersetzt):
-function renderPageTabs() {}
-function renderCanvas() {}
-function renderPropPanel() {}
-function wireLayoutToolbar() {}
+// ── Layout: Seiten-Tabs & Toolbar ───────────────────────────────────────────
+function wireLayoutToolbar() {
+  $('#add-widget').addEventListener('click', () => {
+    if (!config.signals.length) { alert('Bitte zuerst ein Signal anlegen.'); return; }
+    const page = config.pages[currentPage];
+    if (page.widgets.length >= LIMITS.widgetsPerPage) { alert('Maximal ' + LIMITS.widgetsPerPage + ' Widgets pro Seite.'); return; }
+    const w = defaultWidget('gauge', config.signals[0].name);
+    page.widgets.push(w);
+    selectedWidget = w;
+    renderCanvas(); renderPropPanel();
+  });
+}
+
+function renderPageTabs() {
+  const host = $('#page-tabs');
+  host.innerHTML = '';
+  config.pages.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'page-tab' + (i === currentPage ? ' active' : '');
+    b.textContent = (p.title || 'Seite ' + (i + 1));
+    b.addEventListener('click', () => { currentPage = i; selectedWidget = null; renderCanvas(); renderPropPanel(); renderPageTabs(); });
+    host.appendChild(b);
+  });
+  const add = document.createElement('button');
+  add.className = 'page-tab'; add.textContent = '＋';
+  add.addEventListener('click', () => {
+    if (config.pages.length >= LIMITS.pages) { alert('Maximal ' + LIMITS.pages + ' Seiten.'); return; }
+    config.pages.push({ title: 'Seite ' + (config.pages.length + 1), widgets: [] });
+    currentPage = config.pages.length - 1; selectedWidget = null;
+    renderPageTabs(); renderCanvas(); renderPropPanel();
+  });
+  host.appendChild(add);
+}
+
+// ── Layout: Canvas ───────────────────────────────────────────────────────
+function renderCanvas() {
+  const canvas = $('#canvas');
+  canvas.innerHTML = '';
+  const page = config.pages[currentPage];
+  if (!page) return;
+  page.widgets.forEach((w, i) => {
+    const el = document.createElement('div');
+    el.className = 'widget' + (w === selectedWidget ? ' selected' : '');
+    el.style.left = (w.x / DISPLAY.w * 100) + '%';
+    el.style.top = (w.y / DISPLAY.h * 100) + '%';
+    el.style.width = (w.width / DISPLAY.w * 100) + '%';
+    el.style.height = (w.height / DISPLAY.h * 100) + '%';
+    el.style.background = normalizeColor(w.background_color) || '#1a1a1a';
+    el.innerHTML = widgetPreview(w);
+    el.addEventListener('mousedown', ev => startDrag(ev, w, el)); // Task 7
+    canvas.appendChild(el);
+    if (w === selectedWidget) {
+      const h = document.createElement('div');
+      h.className = 'handle';
+      h.addEventListener('mousedown', ev => startResize(ev, w, el)); // Task 7
+      el.appendChild(h);
+    }
+  });
+}
+
+// Vereinfachte Vorschau je Widget-Typ mit Beispielwert (≈70 %).
+function widgetPreview(w) {
+  const sig = config.signals.find(s => s.name === w.signal) || { min: 0, max: 100, unit: '' };
+  const val = sampleValue(sig);
+  const pct = Math.max(0, Math.min(1, (val - sig.min) / ((sig.max - sig.min) || 1)));
+  const color = isWarning(w, val) ? (normalizeColor(w.warning_color) || '#FF4400')
+                                  : (normalizeColor(w.normal_color) || '#00AA00');
+  const title = w.title || w.signal || w.type;
+  const num = (Math.round(val * 10) / 10) + (sig.unit ? ' ' + sig.unit : '');
+  const cap = '<div style="font-size:11px;color:#9aa;text-align:center">' + esc(title) + '</div>';
+
+  switch (w.type) {
+    case 'bar':
+      return cap + '<div style="margin:6px;height:60%;background:#333;border-radius:3px">' +
+        '<div style="height:100%;width:' + (pct * 100) + '%;background:' + color + ';border-radius:3px"></div></div>' +
+        '<div style="text-align:center;font-size:12px;color:#fff">' + num + '</div>';
+    case 'led':
+      return cap + '<div style="margin:auto;margin-top:8px;width:40%;aspect-ratio:1;border-radius:50%;background:' + color + '"></div>';
+    case 'label':
+      return cap + '<div style="text-align:center;font-size:18px;font-weight:600;color:#fff;margin-top:8px">' + num + '</div>';
+    case 'chart':
+      return cap + '<div style="display:flex;align-items:flex-end;gap:2px;height:60%;margin:6px">' +
+        [40, 60, 50, 75, pct * 100].map(h => '<div style="flex:1;height:' + h + '%;background:' + color + '"></div>').join('') + '</div>';
+    case 'arc':
+    case 'gauge':
+    default:
+      return '<div style="width:100%;height:100%;border-radius:50%;background:conic-gradient(' + color + ' 0 ' +
+        (pct * 100) + '%,#2a2a2a ' + (pct * 100) + '% 100%);display:flex;align-items:center;justify-content:center">' +
+        '<div style="width:62%;height:62%;border-radius:50%;background:#1a1a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">' +
+        '<span style="font-size:10px;color:#9aa">' + esc(title) + '</span><span style="font-size:13px">' + num + '</span></div></div>';
+  }
+}
+
+// ── Layout: Eigenschaften-Panel ──────────────────────────────────────────
+const PROP_FIELDS = [
+  { k: 'type', t: 'select', opts: WIDGET_TYPES },
+  { k: 'signal', t: 'signal' },
+  { k: 'title', t: 'text' },
+  { k: 'x', t: 'number' }, { k: 'y', t: 'number' },
+  { k: 'width', t: 'number' }, { k: 'height', t: 'number' },
+  { k: 'normal_color', t: 'color' }, { k: 'warning_color', t: 'color' },
+  { k: 'warning_threshold', t: 'number' }, { k: 'background_color', t: 'color' },
+];
+
+function renderPropPanel() {
+  const panel = $('#prop-panel');
+  const w = selectedWidget;
+  if (!w) { panel.innerHTML = '<p class="muted">Kein Widget ausgewählt.</p>'; return; }
+  let html = '<h2>' + esc(w.type) + ' · Eigenschaften</h2>';
+  PROP_FIELDS.forEach(f => {
+    html += '<label>' + f.k + '</label>';
+    if (f.t === 'select')
+      html += '<select data-prop="' + f.k + '">' + f.opts.map(o => '<option' + (o === w[f.k] ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+    else if (f.t === 'signal')
+      html += '<select data-prop="signal">' + config.signals.map(s => '<option' + (s.name === w.signal ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select>';
+    else if (f.t === 'color')
+      html += '<input type="text" data-prop="' + f.k + '" value="' + (w[f.k] || '') + '" placeholder="#RRGGBB">';
+    else
+      html += '<input type="' + (f.t === 'number' ? 'number' : 'text') + '" data-prop="' + f.k + '" value="' + (w[f.k] == null ? '' : w[f.k]) + '">';
+  });
+  html += '<button class="danger" id="del-widget" style="margin-top:0.8em">🗑 Widget löschen</button>';
+  panel.innerHTML = html;
+
+  panel.querySelectorAll('[data-prop]').forEach(el => el.addEventListener('change', () => {
+    const k = el.dataset.prop;
+    const isNum = ['x', 'y', 'width', 'height', 'warning_threshold'].includes(k);
+    w[k] = isNum ? Number(el.value) : el.value;
+    renderCanvas();
+  }));
+  $('#del-widget').addEventListener('click', () => {
+    const page = config.pages[currentPage];
+    page.widgets.splice(page.widgets.indexOf(w), 1);
+    selectedWidget = null; renderCanvas(); renderPropPanel();
+  });
+}
 
 document.addEventListener('DOMContentLoaded', init);
