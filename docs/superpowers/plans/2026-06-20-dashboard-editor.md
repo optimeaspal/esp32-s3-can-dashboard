@@ -1135,8 +1135,10 @@ Expected: Widget lässt sich mit der Maus verschieben; X/Y im Panel laufen mit. 
 
 - [ ] **Step 3: Node-Tests erneut laufen lassen (Regressionscheck Kernlogik)**
 
-Run: `node --test test/www/`
+Run: `node --test test/www/editor-core.test.cjs`
 Expected: PASS – alle editor-core-Tests weiterhin grün.
+(Hinweis: Verzeichnisform `node --test test/www/` wird von Node 22 als Modulpfad
+gedeutet → MODULE_NOT_FOUND; daher immer die Datei explizit angeben.)
 
 - [ ] **Step 4: Commit**
 
