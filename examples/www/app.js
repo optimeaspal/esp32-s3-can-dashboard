@@ -305,9 +305,9 @@ function renderPropPanel() {
     else if (f.t === 'signal')
       html += '<select data-prop="signal">' + config.signals.map(s => '<option' + (s.name === w.signal ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select>';
     else if (f.t === 'color')
-      html += '<input type="text" data-prop="' + f.k + '" value="' + (w[f.k] || '') + '" placeholder="#RRGGBB">';
+      html += '<input type="text" data-prop="' + f.k + '" value="' + esc(w[f.k] || '') + '" placeholder="#RRGGBB">';
     else
-      html += '<input type="' + (f.t === 'number' ? 'number' : 'text') + '" data-prop="' + f.k + '" value="' + (w[f.k] == null ? '' : w[f.k]) + '">';
+      html += '<input type="' + (f.t === 'number' ? 'number' : 'text') + '" data-prop="' + f.k + '" value="' + (w[f.k] == null ? '' : esc(w[f.k])) + '">';
   });
   html += '<button class="danger" id="del-widget" style="margin-top:0.8em">🗑 Widget löschen</button>';
   panel.innerHTML = html;
