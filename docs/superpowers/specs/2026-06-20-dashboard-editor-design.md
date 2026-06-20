@@ -27,6 +27,7 @@ im `www`-Ordner auf der SD-Karte.
 | Editor-Paradigma | **Hybrid**: WYSIWYG-Canvas + Eigenschaften-Panel |
 | Umfang | Signale **und** Seiten **und** Widgets; Signale auf eigenem Tab |
 | Datenfluss | **Gerät + Datei**: laden/speichern via Gerät, zusätzlich Datei-Import/-Export |
+| Offline-Nutzung | Dieselben Dateien auch ohne Gerät (lokal via `file://`) nutzbar; Offline-Modus mit Skelett/Import + Export |
 | Vorschau-Treue | **Beispielwert-Render** (≈70 % des Bereichs, Warnfarbe ab Schwelle) |
 | TX | Mitgedacht (durchgereicht), nicht implementiert |
 | Tech-Stack | Vanilla HTML/CSS/JS, selbst-enthalten, keine CDNs/Build-Kette |
@@ -68,6 +69,7 @@ und beim Speichern unverändert serialisiert.
 ```
 Start  → GET /api/config            → config in Browser laden
          (404/leer → leeres Skelett)
+         (fetch schlägt fehl = kein Gerät → Offline-Modus, s.u.)
 Edit   → rein im Browser (config-Objekt mutieren, Re-Render)
 Save   → POST /api/config (Raw-Body) → Gerät validiert → temp → rename → Neustart
 Backup → Export: config als .json herunterladen (clientseitig)
@@ -119,6 +121,25 @@ Es ist eine **visuelle Annäherung**, kein pixelgenaues LVGL-Abbild.
 - `POST /api/config`: **unverändert** (Validierung mit Boot-Parser, temp,
   atomares Rename, verzögerter Neustart).
 - Statische Assets (`www`) werden wie bisher ausgeliefert.
+
+### 6. Offline-Modus (ohne Gerät)
+
+Dieselben `www`-Dateien sollen auch **lokal ohne Gerät** funktionieren – z.&nbsp;B.
+um eine `dashboard.json` am PC vorzubereiten (Datei via `file://` im Browser öffnen
+oder von einem beliebigen statischen Server).
+
+- Beim Start versucht der Editor `GET /api/config`. **Schlägt der Fetch fehl**
+  (kein Gerät erreichbar / `file://`-Kontext), wechselt er in den **Offline-Modus**:
+  Start mit leerem Skelett, Datei-**Import** als primärer Ladeweg.
+- Im Offline-Modus ist **„Speichern & Übernehmen"** deaktiviert (kein Gerät);
+  **Export** als `dashboard.json` ist der Ausgabeweg. Ein Statusbanner zeigt
+  „Offline – kein Gerät verbunden".
+- Wird der Editor vom Gerät ausgeliefert und `GET /api/config` gelingt, ist der
+  volle Online-Modus aktiv. **Kein Code-Zweig dupliziert** – der Unterschied ist
+  nur Geräte-Erreichbarkeit + ein/zwei deaktivierte Aktionen.
+- Voraussetzung: keine externen CDNs, alle Assets relativ verlinkt (gilt ohnehin).
+  `app.js`/`style.css` werden relativ geladen und funktionieren unter `file://`;
+  die einzige Netzwerkanfrage ist `/api/config`.
 
 ## Validierung & Fehlerbehandlung
 
