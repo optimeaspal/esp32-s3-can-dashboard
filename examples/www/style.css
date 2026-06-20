@@ -38,8 +38,10 @@ button.danger { background: #7a2a2a; }
 .widget { position: absolute; overflow: hidden; cursor: move;
           border: 1px solid transparent; }
 .widget.selected { outline: 2px solid #4af; outline-offset: 2px; z-index: 5; }
-.handle { position: absolute; right: -5px; bottom: -5px; width: 12px; height: 12px;
-          background: #4af; border-radius: 2px; cursor: se-resize; }
+/* Anfasser bündig in der Ecke (nicht außerhalb), sonst klippt .widget overflow
+ * den Greifbereich auf einen Splitter. */
+.handle { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px;
+          background: #4af; border-radius: 2px 0 2px 0; cursor: se-resize; }
 
 .prop-panel { flex: 1; min-width: 230px; background: #141a20;
               border: 1px solid #2a3540; border-radius: 6px; padding: 0.8em; }
