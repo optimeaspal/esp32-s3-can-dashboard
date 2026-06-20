@@ -32,3 +32,6 @@ documents/*.pdf
 Thumbs.db
 *.swp
 *~
+
+# Brainstorming-Begleiter
+.superpowers/
