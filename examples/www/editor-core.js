@@ -61,6 +61,9 @@ function normalizeColor(str) {
 }
 
 // Spiegelt config_loader.c. errors blockieren das Speichern, warnings nicht.
+// Bewusst strenger als der C-Parser (gewollte Editor-Leitplanken, NICHT an C
+// angleichen): byte_length nur {1,2,4}, endianness nur little/big, type nur aus
+// WIDGET_TYPES. Der C-Parser akzeptiert hier mehr; das Gerät bleibt maßgeblich.
 function validateConfig(config) {
   const errors = [];
   const warnings = [];
