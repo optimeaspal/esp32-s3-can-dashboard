@@ -325,4 +325,69 @@ function renderPropPanel() {
   });
 }
 
+// ── Layout: Drag & Resize ───────────────────────────────────────────────────
+// Pixelumrechnung: Canvas-Breite (CSS-Pixel) ↔ 800×480-Koordinaten.
+function canvasScale() {
+  const rect = $('#canvas').getBoundingClientRect();
+  return { sx: DISPLAY.w / rect.width, sy: DISPLAY.h / rect.height };
+}
+
+function startDrag(ev, w, el) {
+  if (ev.target.classList.contains('handle')) return; // Resize hat Vorrang
+  ev.preventDefault();
+  selectedWidget = w; renderCanvas(); renderPropPanel();
+  const { sx, sy } = canvasScale();
+  const startX = ev.clientX, startY = ev.clientY, ox = w.x, oy = w.y;
+  function move(e) {
+    w.x = clamp(Math.round(ox + (e.clientX - startX) * sx), 0, DISPLAY.w - w.width);
+    w.y = clamp(Math.round(oy + (e.clientY - startY) * sy), 0, DISPLAY.h - w.height);
+    applyWidgetBox(w);
+    syncPropPanel(w);
+  }
+  endOnUp(move);
+}
+
+function startResize(ev, w) {
+  ev.preventDefault(); ev.stopPropagation();
+  const { sx, sy } = canvasScale();
+  const startX = ev.clientX, startY = ev.clientY, ow = w.width, oh = w.height;
+  function move(e) {
+    w.width = clamp(Math.round(ow + (e.clientX - startX) * sx), 20, DISPLAY.w - w.x);
+    w.height = clamp(Math.round(oh + (e.clientY - startY) * sy), 20, DISPLAY.h - w.y);
+    applyWidgetBox(w);
+    syncPropPanel(w);
+  }
+  endOnUp(move);
+}
+
+function endOnUp(moveHandler) {
+  function up() {
+    document.removeEventListener('mousemove', moveHandler);
+    document.removeEventListener('mouseup', up);
+    renderCanvas(); // finaler Redraw (inkl. neuem Handle-Sitz)
+  }
+  document.addEventListener('mousemove', moveHandler);
+  document.addEventListener('mouseup', up);
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// Box live aktualisieren, ohne den ganzen Canvas neu zu zeichnen.
+function applyWidgetBox(w) {
+  const el = $('#canvas').children[config.pages[currentPage].widgets.indexOf(w)];
+  if (!el) return;
+  el.style.left = (w.x / DISPLAY.w * 100) + '%';
+  el.style.top = (w.y / DISPLAY.h * 100) + '%';
+  el.style.width = (w.width / DISPLAY.w * 100) + '%';
+  el.style.height = (w.height / DISPLAY.h * 100) + '%';
+}
+
+// X/Y/B/H-Felder im Panel mitführen (ohne Panel-Neuaufbau).
+function syncPropPanel(w) {
+  ['x', 'y', 'width', 'height'].forEach(k => {
+    const el = document.querySelector('[data-prop="' + k + '"]');
+    if (el) el.value = w[k];
+  });
+}
+
 document.addEventListener('DOMContentLoaded', init);
