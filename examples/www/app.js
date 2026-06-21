@@ -236,7 +236,7 @@ function renderCanvas() {
     el.style.top = (w.y / DISPLAY.h * 100) + '%';
     el.style.width = (w.width / DISPLAY.w * 100) + '%';
     el.style.height = (w.height / DISPLAY.h * 100) + '%';
-    el.style.background = normalizeColor(w.background_color) || '#1a1a1a';
+    // Container (Hintergrund/Rand/Radius) zeichnet das SVG selbst – gerätegetreu.
     el.innerHTML = widgetPreview(w);
     el.addEventListener('mousedown', ev => startDrag(ev, w, el)); // Task 7
     canvas.appendChild(el);
@@ -265,94 +265,155 @@ function arcPath(cx, cy, r, startDeg, endDeg) {
          ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2);
 }
 
-// Gemeinsame Bogen-Geometrie (vgl. Gerät: 270°-Skala, Lücke unten).
-const GAUGE_START = 135, GAUGE_SPAN = 270;
+// ── Geräte-Konstanten (exakt aus src/ui/widgets/*.c gespiegelt) ─────────────
+const GAUGE_START = 135, GAUGE_SPAN = 270;   // lv_meter/lv_arc: 270°, Lücke unten
+const TITLE_H = 24;                          // WC_TITLE_H
+const FONT = "'Montserrat','Segoe UI',system-ui,sans-serif";
+// def_normal je Widget-Typ in wc_base_init(): gilt, wenn keine Farbe gesetzt ist.
+const TYPE_DEFAULT_COLOR = {
+  gauge: '#00B894', chart: '#0088FF', bar: '#00B894',
+  led: '#E74C3C', label: '#ECF0F1', arc: '#FFCC00',
+};
+const WARN_DEFAULT = '#FF4400';              // WC_DEFAULT_WARN
 
-// Vorschau je Widget-Typ mit Beispielwert (≈70 %). Bewusst an die LVGL-Optik
-// des Geräts angelehnt, aber kein Pixelabbild (Spec-Nichtziel).
+// Gerätegetreue Vorschau: ein SVG pro Widget mit viewBox in echten 800×480-Pixeln,
+// damit Schrift-/Tick-/Strichgrößen exakt den LVGL-Werten entsprechen und nur der
+// Gesamt-Canvas einheitlich skaliert. Beispielwert ≈ 70 % des Bereichs.
 function widgetPreview(w) {
   const sig = config.signals.find(s => s.name === w.signal) || { min: 0, max: 100, unit: '' };
+  const min = Number(sig.min) || 0;
+  const max = isNaN(Number(sig.max)) ? 100 : Number(sig.max);
   const val = sampleValue(sig);
-  const pct = Math.max(0, Math.min(1, (val - sig.min) / ((sig.max - sig.min) || 1)));
-  const color = isWarning(w, val) ? (normalizeColor(w.warning_color) || '#FF4400')
-                                  : (normalizeColor(w.normal_color) || '#00AA00');
-  const title = w.title || w.signal || w.type;
-  const num = (Math.round(val * 10) / 10) + (sig.unit ? ' ' + sig.unit : '');
-  const cap = '<div style="font-size:11px;color:#9aa;text-align:center">' + esc(title) + '</div>';
+  const pct = Math.max(0, Math.min(1, (val - min) / ((max - min) || 1)));
+  const color = isWarning(w, val)
+    ? (normalizeColor(w.warning_color) || WARN_DEFAULT)
+    : (normalizeColor(w.normal_color) || TYPE_DEFAULT_COLOR[w.type] || '#00AA00');
+  const unit = sig.unit || '';
+  const W = Math.max(1, Number(w.width) || 1);
+  const H = Math.max(1, Number(w.height) || 1);
+  const bg = normalizeColor(w.background_color) || '#16213E';
+
+  // Container: abgerundetes Rechteck + Rand, optionaler Titel oben (nur wenn gesetzt).
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="100%" style="display:block">';
+  s += '<rect x="0.5" y="0.5" width="' + (W - 1) + '" height="' + (H - 1) +
+       '" rx="8" fill="' + bg + '" stroke="#0F3460" stroke-width="1"/>';
+  if (w.title)
+    s += txt(W / 2, 16, esc(w.title), '#ECF0F1', 14);
 
   switch (w.type) {
-    case 'bar':
-      return cap + '<div style="margin:6px;height:26px;background:#0F3460;border-radius:4px;overflow:hidden">' +
-        '<div style="height:100%;width:' + (pct * 100) + '%;background:' + color + ';border-radius:4px"></div></div>' +
-        '<div style="text-align:center;font-size:12px;color:#fff">' + num + '</div>';
-    case 'led':
-      return cap + '<div style="margin:8px auto 0;width:40%;aspect-ratio:1;border-radius:50%;background:' + color +
-        ';box-shadow:0 0 10px ' + color + '"></div>';
-    case 'label':
-      return cap + '<div style="text-align:center;font-size:20px;font-weight:600;color:#fff;margin-top:10px">' + num + '</div>';
-    case 'chart':
-      return cap + chartSVG(color, pct);
-    case 'arc':
-      return cap + arcSVG(color, pct, num);
+    case 'arc':   s += arcGfx(W, H, color, pct, val, unit); break;
+    case 'chart': s += chartGfx(W, H, color, pct); break;
+    case 'bar':   s += barGfx(W, H, color, pct, val, unit); break;
+    case 'led':   s += ledGfx(W, H, color, val, w); break;
+    case 'label': s += labelGfx(W, H, color, val, unit); break;
     case 'gauge':
-    default:
-      return cap + gaugeSVG(color, pct, num);
+    default:      s += gaugeGfx(W, H, color, pct, min, max, w); break;
   }
+  return s + '</svg>';
 }
 
-// Tacho: 270°-Skala mit Tick-Marken + Zeiger, Wert in der Mitte.
-function gaugeSVG(color, pct, num) {
-  const cx = 50, cy = 50, r = 38;
-  const valDeg = GAUGE_START + pct * GAUGE_SPAN;
-  let ticks = '';
-  for (let i = 0; i <= 8; i++) {
-    const d = GAUGE_START + i / 8 * GAUGE_SPAN;
+// Kleiner SVG-Text-Helfer (zentriert).
+function txt(x, y, content, fill, size, weight) {
+  return '<text x="' + x + '" y="' + y.toFixed(1) + '" text-anchor="middle" fill="' + fill +
+    '" font-size="' + size + '" font-family="' + FONT + '"' +
+    (weight ? ' font-weight="' + weight + '"' : '') + '>' + content + '</text>';
+}
+
+// gauge → lv_meter: 270°-Skala, 41 Ticks (jeder 8. groß + Zahl), Zeiger, Warn-Band.
+function gaugeGfx(W, H, color, pct, min, max, w) {
+  const side = Math.max(20, Math.min(W, H) - 28);
+  const cx = W / 2, cy = H / 2 + TITLE_H / 2, r = side / 2;
+  let s = '';
+  const wt = Number(w.warning_threshold) || 0;
+  if (wt > min && wt < max) {                       // Warnbereich-Bogen (Breite 5)
+    const a0 = GAUGE_START + (wt - min) / (max - min) * GAUGE_SPAN;
+    s += '<path d="' + arcPath(cx, cy, r, a0, GAUGE_START + GAUGE_SPAN) +
+         '" fill="none" stroke="' + (normalizeColor(w.warning_color) || WARN_DEFAULT) + '" stroke-width="5"/>';
+  }
+  for (let i = 0; i <= 40; i++) {
+    const major = i % 8 === 0;
+    const d = GAUGE_START + i / 40 * GAUGE_SPAN;
+    const len = major ? 12 : 8;
     const [x1, y1] = polar(cx, cy, r, d);
-    const [x2, y2] = polar(cx, cy, r - (i % 2 ? 4 : 7), d);
-    ticks += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) +
-             '" y2="' + y2.toFixed(1) + '" stroke="#ECF0F1" stroke-width="' + (i % 2 ? 1 : 1.8) + '"/>';
+    const [x2, y2] = polar(cx, cy, r - len, d);
+    s += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' +
+         y2.toFixed(1) + '" stroke="' + (major ? '#ECF0F1' : '#444466') + '" stroke-width="' + (major ? 4 : 2) + '"/>';
+    if (major) {
+      const [lx, ly] = polar(cx, cy, r - len - 12, d);
+      s += txt(lx, ly + 4, String(Math.round(min + i / 40 * (max - min))), '#ECF0F1', 13);
+    }
   }
-  const [nx, ny] = polar(cx, cy, r - 9, valDeg);
-  return '<svg viewBox="0 0 100 100" style="width:100%;height:calc(100% - 16px)">' +
-    '<path d="' + arcPath(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SPAN) +
-    '" fill="none" stroke="#334466" stroke-width="2.5"/>' + ticks +
-    '<line x1="' + cx + '" y1="' + cy + '" x2="' + nx.toFixed(1) + '" y2="' + ny.toFixed(1) +
-    '" stroke="' + color + '" stroke-width="3" stroke-linecap="round"/>' +
-    '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="' + color + '"/>' +
-    '<text x="50" y="78" text-anchor="middle" fill="#fff" font-size="13" font-family="sans-serif">' +
-    esc(num) + '</text></svg>';
+  const [nx, ny] = polar(cx, cy, r - 10, GAUGE_START + pct * GAUGE_SPAN);
+  s += '<line x1="' + cx + '" y1="' + cy.toFixed(1) + '" x2="' + nx.toFixed(1) + '" y2="' + ny.toFixed(1) +
+       '" stroke="' + color + '" stroke-width="4" stroke-linecap="round"/>';
+  s += '<circle cx="' + cx + '" cy="' + cy.toFixed(1) + '" r="5" fill="' + color + '"/>';
+  return s;
 }
 
-// Dicker 270°-Bogen, der sich bis zum Wert füllt; Zahl mittig.
-function arcSVG(color, pct, num) {
-  const cx = 50, cy = 50, r = 36;
+// arc → lv_arc: 270°-Bogen Breite 10, Track #0F3460, Zahl mittig.
+function arcGfx(W, H, color, pct, val, unit) {
+  const side = Math.max(20, Math.min(W, H) - 28);
+  const cx = W / 2, cy = H / 2 + TITLE_H / 2, r = side / 2;
   const valDeg = GAUGE_START + Math.max(0.001, pct) * GAUGE_SPAN;
-  return '<svg viewBox="0 0 100 100" style="width:100%;height:calc(100% - 16px)">' +
-    '<path d="' + arcPath(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SPAN) +
-    '" fill="none" stroke="#0F3460" stroke-width="9" stroke-linecap="round"/>' +
+  return '<path d="' + arcPath(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SPAN) +
+    '" fill="none" stroke="#0F3460" stroke-width="10" stroke-linecap="round"/>' +
     '<path d="' + arcPath(cx, cy, r, GAUGE_START, valDeg) +
-    '" fill="none" stroke="' + color + '" stroke-width="9" stroke-linecap="round"/>' +
-    '<text x="50" y="55" text-anchor="middle" fill="#ECF0F1" font-size="15" font-family="sans-serif">' +
-    esc(num) + '</text></svg>';
+    '" fill="none" stroke="' + color + '" stroke-width="10" stroke-linecap="round"/>' +
+    txt(cx, cy + 5, esc(Math.round(val) + (unit ? ' ' + unit : '')), '#ECF0F1', 16);
 }
 
-// Rollendes Liniendiagramm mit feinem Raster; Linie endet beim aktuellen Wert.
-function chartSVG(color, pct) {
-  const x0 = 8, x1 = 94, y0 = 8, y1 = 56, W = x1 - x0, H = y1 - y0;
+// chart → lv_chart (LINE): BG #1A1A2E, 5×6 Rasterlinien, Linie endet beim Wert.
+function chartGfx(W, H, color, pct) {
+  const cw = Math.max(10, W - 24), ch = Math.max(10, H - 24 - TITLE_H);
+  const x0 = (W - cw) / 2, y1 = H - 4, y0 = y1 - ch;
+  let s = '<rect x="' + x0.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + cw + '" height="' +
+    ch.toFixed(1) + '" fill="#1A1A2E" stroke="#0F3460" stroke-width="1"/>';
+  for (let i = 1; i <= 5; i++) {                    // 5 horizontale Teilungslinien
+    const gy = y0 + i / 6 * ch;
+    s += '<line x1="' + x0.toFixed(1) + '" y1="' + gy.toFixed(1) + '" x2="' + (x0 + cw).toFixed(1) +
+         '" y2="' + gy.toFixed(1) + '" stroke="#334466" stroke-width="0.5"/>';
+  }
+  for (let i = 1; i <= 6; i++) {                    // 6 vertikale Teilungslinien
+    const gx = x0 + i / 7 * cw;
+    s += '<line x1="' + gx.toFixed(1) + '" y1="' + y0.toFixed(1) + '" x2="' + gx.toFixed(1) +
+         '" y2="' + y1 + '" stroke="#334466" stroke-width="0.5"/>';
+  }
   const samples = [0.42, 0.6, 0.5, 0.68, 0.55, 0.72, pct];
   const n = samples.length;
   const pts = samples.map((p, i) =>
-    (x0 + i / (n - 1) * W).toFixed(1) + ',' + (y1 - p * H).toFixed(1)).join(' ');
-  let grid = '';
-  for (let i = 1; i < 5; i++) {
-    const gy = (y0 + i / 5 * H).toFixed(1);
-    grid += '<line x1="' + x0 + '" y1="' + gy + '" x2="' + x1 + '" y2="' + gy + '" stroke="#26304a" stroke-width="0.5"/>';
-  }
-  return '<svg viewBox="0 0 100 64" style="width:100%;height:calc(100% - 16px)">' +
-    '<rect x="' + x0 + '" y="' + y0 + '" width="' + W + '" height="' + H +
-    '" fill="#1A1A2E" stroke="#0F3460" stroke-width="1"/>' + grid +
-    '<polyline points="' + pts + '" fill="none" stroke="' + color +
-    '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+    (x0 + i / (n - 1) * cw).toFixed(1) + ',' + (y1 - p * ch).toFixed(1)).join(' ');
+  return s + '<polyline points="' + pts + '" fill="none" stroke="' + color +
+    '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+}
+
+// bar → lv_bar: Breite W-28, Höhe 26, Radius 4, Wert darunter.
+function barGfx(W, H, color, pct, val, unit) {
+  const bw = Math.max(10, W - 28), bh = 26, x0 = (W - bw) / 2, y0 = H / 2 - bh / 2;
+  return '<rect x="' + x0.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + bw + '" height="' + bh +
+    '" rx="4" fill="#0F3460"/>' +
+    '<rect x="' + x0.toFixed(1) + '" y="' + y0.toFixed(1) + '" width="' + (bw * pct).toFixed(1) + '" height="' + bh +
+    '" rx="4" fill="' + color + '"/>' +
+    txt(W / 2, y0 + bh + 18, esc(Math.round(val) + (unit ? ' ' + unit : '')), '#ECF0F1', 14);
+}
+
+// led → lv_led: Kreis min(W,H)-40, Glow wenn an (Wert ≥ Schwelle), Status darunter.
+function ledGfx(W, H, color, val, w) {
+  const d = Math.max(20, Math.min(W, H) - 40);
+  const cx = W / 2, cy = H / 2 + TITLE_H / 2, r = d / 2;
+  const thr = (Number(w.warning_threshold) || 0) > 0 ? Number(w.warning_threshold) : 0.5;
+  const on = val >= thr;
+  let s = '';
+  if (on) s += '<circle cx="' + cx + '" cy="' + cy.toFixed(1) + '" r="' + (r + 5).toFixed(1) +
+    '" fill="' + color + '" opacity="0.35"/>';
+  s += '<circle cx="' + cx + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + color +
+    '" opacity="' + (on ? '1' : '0.25') + '"/>';
+  return s + txt(cx, cy + r + 18, on ? 'AN' : 'AUS', '#ECF0F1', 14);
+}
+
+// label → lv_label: große Zahl in Montserrat-24, Wertfarbe.
+function labelGfx(W, H, color, val, unit) {
+  const cy = H / 2 + TITLE_H / 2;
+  return txt(W / 2, cy + 8, esc(val.toFixed(1) + (unit ? ' ' + unit : '')), color, 24, 500);
 }
 
 // ── Layout: Eigenschaften-Panel ──────────────────────────────────────────
