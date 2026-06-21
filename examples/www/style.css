@@ -52,6 +52,19 @@ button.danger { background: #7a2a2a; }
 .prop-row { display: flex; gap: 0.5em; }
 .prop-row > div { flex: 1; }
 
+/* Farbfeld: klickbares Farbquadrat + Hex-Textfeld nebeneinander. */
+.color-field { display: flex; gap: 0.4em; align-items: stretch; }
+.color-field input[type=color] {
+  width: 2.4em; min-width: 2.4em; padding: 2px; height: auto; cursor: pointer;
+  background: #0d1116; border: 1px solid #2a3540; border-radius: 4px; }
+.color-field input[type=text] { flex: 1; }
+/* Schnellauswahl-Palette unter dem Farbfeld. */
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.3em; }
+.swatches .swatch {
+  width: 18px; height: 18px; padding: 0; border-radius: 4px;
+  border: 1px solid #00000055; box-shadow: 0 0 0 1px #2a3540; cursor: pointer; }
+.swatches .swatch:hover { outline: 2px solid #4af; outline-offset: 1px; }
+
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 0.85em; margin-top: 0.6em; }
 th, td { border: 1px solid #2a3540; padding: 0.3em 0.4em; text-align: left; }

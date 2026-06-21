@@ -249,7 +249,27 @@ function renderCanvas() {
   });
 }
 
-// Vereinfachte Vorschau je Widget-Typ mit Beispielwert (≈70 %).
+// Polarkoordinaten → [x,y]. Winkelkonvention wie LVGL: 0° = Osten (3 Uhr),
+// positive Winkel im Uhrzeigersinn (passt zur nach unten wachsenden SVG-Y-Achse).
+function polar(cx, cy, r, deg) {
+  const a = deg * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+
+// SVG-Pfad für einen Kreisbogen von startDeg bis endDeg (im Uhrzeigersinn).
+function arcPath(cx, cy, r, startDeg, endDeg) {
+  const [x1, y1] = polar(cx, cy, r, startDeg);
+  const [x2, y2] = polar(cx, cy, r, endDeg);
+  const large = (endDeg - startDeg) % 360 > 180 ? 1 : 0;
+  return 'M ' + x1.toFixed(2) + ' ' + y1.toFixed(2) +
+         ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2);
+}
+
+// Gemeinsame Bogen-Geometrie (vgl. Gerät: 270°-Skala, Lücke unten).
+const GAUGE_START = 135, GAUGE_SPAN = 270;
+
+// Vorschau je Widget-Typ mit Beispielwert (≈70 %). Bewusst an die LVGL-Optik
+// des Geräts angelehnt, aber kein Pixelabbild (Spec-Nichtziel).
 function widgetPreview(w) {
   const sig = config.signals.find(s => s.name === w.signal) || { min: 0, max: 100, unit: '' };
   const val = sampleValue(sig);
@@ -262,27 +282,88 @@ function widgetPreview(w) {
 
   switch (w.type) {
     case 'bar':
-      return cap + '<div style="margin:6px;height:60%;background:#333;border-radius:3px">' +
-        '<div style="height:100%;width:' + (pct * 100) + '%;background:' + color + ';border-radius:3px"></div></div>' +
+      return cap + '<div style="margin:6px;height:26px;background:#0F3460;border-radius:4px;overflow:hidden">' +
+        '<div style="height:100%;width:' + (pct * 100) + '%;background:' + color + ';border-radius:4px"></div></div>' +
         '<div style="text-align:center;font-size:12px;color:#fff">' + num + '</div>';
     case 'led':
-      return cap + '<div style="margin:auto;margin-top:8px;width:40%;aspect-ratio:1;border-radius:50%;background:' + color + '"></div>';
+      return cap + '<div style="margin:8px auto 0;width:40%;aspect-ratio:1;border-radius:50%;background:' + color +
+        ';box-shadow:0 0 10px ' + color + '"></div>';
     case 'label':
-      return cap + '<div style="text-align:center;font-size:18px;font-weight:600;color:#fff;margin-top:8px">' + num + '</div>';
+      return cap + '<div style="text-align:center;font-size:20px;font-weight:600;color:#fff;margin-top:10px">' + num + '</div>';
     case 'chart':
-      return cap + '<div style="display:flex;align-items:flex-end;gap:2px;height:60%;margin:6px">' +
-        [40, 60, 50, 75, pct * 100].map(h => '<div style="flex:1;height:' + h + '%;background:' + color + '"></div>').join('') + '</div>';
+      return cap + chartSVG(color, pct);
     case 'arc':
+      return cap + arcSVG(color, pct, num);
     case 'gauge':
     default:
-      return '<div style="width:100%;height:100%;border-radius:50%;background:conic-gradient(' + color + ' 0 ' +
-        (pct * 100) + '%,#2a2a2a ' + (pct * 100) + '% 100%);display:flex;align-items:center;justify-content:center">' +
-        '<div style="width:62%;height:62%;border-radius:50%;background:#1a1a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">' +
-        '<span style="font-size:10px;color:#9aa">' + esc(title) + '</span><span style="font-size:13px">' + num + '</span></div></div>';
+      return cap + gaugeSVG(color, pct, num);
   }
 }
 
+// Tacho: 270°-Skala mit Tick-Marken + Zeiger, Wert in der Mitte.
+function gaugeSVG(color, pct, num) {
+  const cx = 50, cy = 50, r = 38;
+  const valDeg = GAUGE_START + pct * GAUGE_SPAN;
+  let ticks = '';
+  for (let i = 0; i <= 8; i++) {
+    const d = GAUGE_START + i / 8 * GAUGE_SPAN;
+    const [x1, y1] = polar(cx, cy, r, d);
+    const [x2, y2] = polar(cx, cy, r - (i % 2 ? 4 : 7), d);
+    ticks += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) +
+             '" y2="' + y2.toFixed(1) + '" stroke="#ECF0F1" stroke-width="' + (i % 2 ? 1 : 1.8) + '"/>';
+  }
+  const [nx, ny] = polar(cx, cy, r - 9, valDeg);
+  return '<svg viewBox="0 0 100 100" style="width:100%;height:calc(100% - 16px)">' +
+    '<path d="' + arcPath(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SPAN) +
+    '" fill="none" stroke="#334466" stroke-width="2.5"/>' + ticks +
+    '<line x1="' + cx + '" y1="' + cy + '" x2="' + nx.toFixed(1) + '" y2="' + ny.toFixed(1) +
+    '" stroke="' + color + '" stroke-width="3" stroke-linecap="round"/>' +
+    '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="' + color + '"/>' +
+    '<text x="50" y="78" text-anchor="middle" fill="#fff" font-size="13" font-family="sans-serif">' +
+    esc(num) + '</text></svg>';
+}
+
+// Dicker 270°-Bogen, der sich bis zum Wert füllt; Zahl mittig.
+function arcSVG(color, pct, num) {
+  const cx = 50, cy = 50, r = 36;
+  const valDeg = GAUGE_START + Math.max(0.001, pct) * GAUGE_SPAN;
+  return '<svg viewBox="0 0 100 100" style="width:100%;height:calc(100% - 16px)">' +
+    '<path d="' + arcPath(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SPAN) +
+    '" fill="none" stroke="#0F3460" stroke-width="9" stroke-linecap="round"/>' +
+    '<path d="' + arcPath(cx, cy, r, GAUGE_START, valDeg) +
+    '" fill="none" stroke="' + color + '" stroke-width="9" stroke-linecap="round"/>' +
+    '<text x="50" y="55" text-anchor="middle" fill="#ECF0F1" font-size="15" font-family="sans-serif">' +
+    esc(num) + '</text></svg>';
+}
+
+// Rollendes Liniendiagramm mit feinem Raster; Linie endet beim aktuellen Wert.
+function chartSVG(color, pct) {
+  const x0 = 8, x1 = 94, y0 = 8, y1 = 56, W = x1 - x0, H = y1 - y0;
+  const samples = [0.42, 0.6, 0.5, 0.68, 0.55, 0.72, pct];
+  const n = samples.length;
+  const pts = samples.map((p, i) =>
+    (x0 + i / (n - 1) * W).toFixed(1) + ',' + (y1 - p * H).toFixed(1)).join(' ');
+  let grid = '';
+  for (let i = 1; i < 5; i++) {
+    const gy = (y0 + i / 5 * H).toFixed(1);
+    grid += '<line x1="' + x0 + '" y1="' + gy + '" x2="' + x1 + '" y2="' + gy + '" stroke="#26304a" stroke-width="0.5"/>';
+  }
+  return '<svg viewBox="0 0 100 64" style="width:100%;height:calc(100% - 16px)">' +
+    '<rect x="' + x0 + '" y="' + y0 + '" width="' + W + '" height="' + H +
+    '" fill="#1A1A2E" stroke="#0F3460" stroke-width="1"/>' + grid +
+    '<polyline points="' + pts + '" fill="none" stroke="' + color +
+    '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+}
+
 // ── Layout: Eigenschaften-Panel ──────────────────────────────────────────
+// Gängige Dashboard-Farben für die Schnellauswahl (Name als Tooltip).
+const COLOR_PALETTE = [
+  ['#00AA00', 'Grün'], ['#7ED321', 'Hellgrün'], ['#FFCC00', 'Gelb'],
+  ['#FF8800', 'Orange'], ['#FF4400', 'Rotorange'], ['#FF0000', 'Rot'],
+  ['#0088FF', 'Blau'], ['#00CCCC', 'Cyan'], ['#CC00CC', 'Magenta'],
+  ['#FFFFFF', 'Weiß'], ['#888888', 'Grau'], ['#1A1A1A', 'Dunkel'],
+];
+
 const PROP_FIELDS = [
   { k: 'type', t: 'select', opts: WIDGET_TYPES },
   { k: 'signal', t: 'signal' },
@@ -292,6 +373,30 @@ const PROP_FIELDS = [
   { k: 'normal_color', t: 'color' }, { k: 'warning_color', t: 'color' },
   { k: 'warning_threshold', t: 'number' }, { k: 'background_color', t: 'color' },
 ];
+
+// Farbfeld: klickbares Farbquadrat (nativer Picker) + Hex-Textfeld + Palette.
+// Alle drei spiegeln denselben Wert und werden in renderPropPanel synchron gehalten.
+function colorFieldHTML(key, value) {
+  const hex = normalizeColor(value) || '#000000';
+  let pal = '<div class="swatches" data-swatch-for="' + key + '">';
+  COLOR_PALETTE.forEach(([c, name]) => {
+    pal += '<button type="button" class="swatch" title="' + esc(name) + ' (' + c + ')"' +
+           ' data-set-color="' + c + '" style="background:' + c + '"></button>';
+  });
+  pal += '</div>';
+  return '<div class="color-field">' +
+    '<input type="color" data-colorpick="' + key + '" value="' + hex.toLowerCase() + '">' +
+    '<input type="text" data-prop="' + key + '" value="' + esc(value || '') + '" placeholder="#RRGGBB">' +
+    '</div>' + pal;
+}
+
+// Farbquadrat dem aktuellen (Text-)Wert nachführen; nur gültige Hex-Werte
+// kann der native Picker übernehmen, ungültige Eingaben lässt er unverändert.
+function syncColorControls(key, value) {
+  const pick = document.querySelector('[data-colorpick="' + key + '"]');
+  const hex = normalizeColor(value);
+  if (pick && hex) pick.value = hex.toLowerCase();
+}
 
 function renderPropPanel() {
   const panel = $('#prop-panel');
@@ -305,7 +410,7 @@ function renderPropPanel() {
     else if (f.t === 'signal')
       html += '<select data-prop="signal">' + config.signals.map(s => '<option' + (s.name === w.signal ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select>';
     else if (f.t === 'color')
-      html += '<input type="text" data-prop="' + f.k + '" value="' + esc(w[f.k] || '') + '" placeholder="#RRGGBB">';
+      html += colorFieldHTML(f.k, w[f.k]);
     else
       html += '<input type="' + (f.t === 'number' ? 'number' : 'text') + '" data-prop="' + f.k + '" value="' + (w[f.k] == null ? '' : esc(w[f.k])) + '">';
   });
@@ -316,8 +421,28 @@ function renderPropPanel() {
     const k = el.dataset.prop;
     const isNum = ['x', 'y', 'width', 'height', 'warning_threshold'].includes(k);
     w[k] = isNum ? Number(el.value) : el.value;
+    syncColorControls(k, w[k]);
     renderCanvas();
   }));
+
+  // Eine Farbe an allen drei Bedienelementen + im Modell setzen.
+  function setColor(key, hex) {
+    w[key] = hex;
+    const txt = panel.querySelector('[data-prop="' + key + '"]');
+    if (txt) txt.value = hex;
+    syncColorControls(key, hex);
+    renderCanvas();
+  }
+  // Natives Farbquadrat → Textfeld/Modell.
+  panel.querySelectorAll('[data-colorpick]').forEach(el =>
+    el.addEventListener('input', () => setColor(el.dataset.colorpick, el.value.toUpperCase())));
+  // Palette-Swatch → alles setzen.
+  panel.querySelectorAll('[data-swatch-for]').forEach(box =>
+    box.addEventListener('click', ev => {
+      const btn = ev.target.closest('[data-set-color]');
+      if (btn) setColor(box.dataset.swatchFor, btn.dataset.setColor);
+    }));
+
   $('#del-widget').addEventListener('click', () => {
     const page = config.pages[currentPage];
     page.widgets.splice(page.widgets.indexOf(w), 1);
