@@ -1059,7 +1059,7 @@ Verbindet Maus-Interaktion mit `x/y/width/height`. Die Funktionen `startDrag`/`s
 **Files:**
 - Modify: `examples/www/app.js`
 
-- [ ] **Step 1: startDrag / startResize implementieren**
+- [x] **Step 1: startDrag / startResize implementieren**
 
 Vor der `DOMContentLoaded`-Zeile einfügen:
 
@@ -1135,14 +1135,14 @@ function syncPropPanel(w) {
 Run: `examples/www/index.html` neu laden, Widget anlegen.
 Expected: Widget lässt sich mit der Maus verschieben; X/Y im Panel laufen mit. Eckpunkt (blaues Quadrat) ändert Breite/Höhe; B/H laufen mit. Werte bleiben im Bereich 0…800 / 0…480.
 
-- [ ] **Step 3: Node-Tests erneut laufen lassen (Regressionscheck Kernlogik)**
+- [x] **Step 3: Node-Tests erneut laufen lassen (Regressionscheck Kernlogik)**
 
 Run: `node --test test/www/editor-core.test.cjs`
 Expected: PASS – alle editor-core-Tests weiterhin grün.
 (Hinweis: Verzeichnisform `node --test test/www/` wird von Node 22 als Modulpfad
 gedeutet → MODULE_NOT_FOUND; daher immer die Datei explizit angeben.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add examples/www/app.js
