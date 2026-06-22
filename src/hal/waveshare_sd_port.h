@@ -12,6 +12,7 @@
 
 #include "esp_err.h"
 #include <stddef.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,6 +56,12 @@ esp_err_t waveshare_sd_write_file(const char *path, const char *buf, size_t len)
  * @return ESP_OK bei Erfolg, ESP_FAIL sonst.
  */
 esp_err_t waveshare_sd_rename(const char *from_path, const char *to_path);
+
+/* true, wenn die SD-Karte erfolgreich gemountet wurde. */
+bool waveshare_sd_port_is_mounted(void);
+
+/* true, wenn die Datei unter path existiert (z. B. "/sdcard/dashboard.json"). */
+bool waveshare_sd_port_file_exists(const char *path);
 
 #ifdef __cplusplus
 }

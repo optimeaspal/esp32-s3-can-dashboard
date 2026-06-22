@@ -40,6 +40,18 @@ wifi_port_status_t waveshare_wifi_port_get_status(void);
 /* Liefert die zuletzt erhaltene IP als String ("0.0.0.0" wenn keine). */
 const char *waveshare_wifi_port_get_ip(void);
 
+/* SSID des verbundenen Netzes ("" wenn nicht verbunden). */
+const char *waveshare_wifi_port_get_ssid(void);
+
+/* Registrierter mDNS-Hostname ("" wenn nicht gesetzt). */
+const char *waveshare_wifi_port_get_hostname(void);
+
+/*
+ * Aktuelle Signalstärke des verbundenen APs in dBm.
+ * @return RSSI (negativ) oder 0, wenn nicht verbunden/nicht verfügbar.
+ */
+int waveshare_wifi_port_get_rssi(void);
+
 #ifdef __cplusplus
 }
 #endif

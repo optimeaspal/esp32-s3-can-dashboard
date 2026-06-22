@@ -18,6 +18,8 @@ static const char *TAG = "wifi_port";
 static EventGroupHandle_t  s_wifi_events;
 static wifi_port_status_t  s_status = WIFI_PORT_IDLE;
 static char                s_ip[16] = "0.0.0.0";
+static char                s_ssid[33]     = "";
+static char                s_hostname[33] = "";
 static esp_netif_t        *s_netif;
 
 static void on_wifi_event(void *arg, esp_event_base_t base,
@@ -104,6 +106,8 @@ esp_err_t waveshare_wifi_port_start(const wifi_credentials_t *creds,
     for (uint8_t i = 0; i < creds->network_count; i++) {
         if (try_connect(&creds->networks[i], connect_timeout_ms)) {
             s_status = WIFI_PORT_CONNECTED;
+            strncpy(s_ssid, creds->networks[i].ssid, sizeof(s_ssid) - 1);
+            strncpy(s_hostname, creds->hostname, sizeof(s_hostname) - 1);
             ESP_LOGI(TAG, "Verbunden mit '%s', IP %s",
                      creds->networks[i].ssid, s_ip);
             start_mdns(creds->hostname, CONFIG_DASHBOARD_HTTP_PORT);
@@ -119,3 +123,13 @@ esp_err_t waveshare_wifi_port_start(const wifi_credentials_t *creds,
 
 wifi_port_status_t waveshare_wifi_port_get_status(void) { return s_status; }
 const char *waveshare_wifi_port_get_ip(void) { return s_ip; }
+const char *waveshare_wifi_port_get_ssid(void)     { return s_ssid; }
+const char *waveshare_wifi_port_get_hostname(void) { return s_hostname; }
+
+int waveshare_wifi_port_get_rssi(void)
+{
+    if (s_status != WIFI_PORT_CONNECTED) return 0;
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) return 0;
+    return ap.rssi;
+}

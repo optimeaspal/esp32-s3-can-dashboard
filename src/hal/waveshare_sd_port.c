@@ -11,6 +11,8 @@
 #include "freertos/task.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
+#include <sys/stat.h>
 
 static const char *TAG = "waveshare_sd";
 
@@ -53,7 +55,8 @@ static esp_err_t sd_cs_assert(bool active)
     return ch422g_write_out(out);
 }
 
-static sdmmc_card_t *s_card = NULL;
+static sdmmc_card_t *s_card    = NULL;
+static bool          s_mounted = false;
 
 esp_err_t waveshare_sd_port_init(void)
 {
@@ -107,6 +110,7 @@ esp_err_t waveshare_sd_port_init(void)
 
     sdmmc_card_print_info(stdout, s_card);
     ESP_LOGI(TAG, "SD-Karte gemountet unter %s", SD_MOUNT_POINT);
+    s_mounted = true;
     return ESP_OK;
 }
 
@@ -167,4 +171,12 @@ esp_err_t waveshare_sd_rename(const char *from_path, const char *to_path)
         return ESP_FAIL;
     }
     return ESP_OK;
+}
+
+bool waveshare_sd_port_is_mounted(void) { return s_mounted; }
+
+bool waveshare_sd_port_file_exists(const char *path)
+{
+    struct stat st;
+    return path && stat(path, &st) == 0;
 }
