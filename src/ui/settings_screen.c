@@ -98,7 +98,7 @@ static void build_screen(void)
     lv_label_set_text(title, "Einstellungen & Info");
     lv_obj_set_style_text_color(title, lv_color_hex(0xEAF2FB), 0);
     lv_obj_set_style_text_font(title, FONT_TITLE, 0);
-    lv_obj_align(title, LV_ALIGN_LEFT_MID, 160, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_t *body = lv_obj_create(s_screen);
     lv_obj_set_size(body, LV_HOR_RES, LV_VER_RES - 56);
@@ -233,7 +233,7 @@ static void update_can_table(void)
             char hex[32];
             format_hex(hex, sizeof(hex), entries[i].data, entries[i].dlc);
             char row[64];
-            snprintf(row, sizeof(row), "0x%03lX  %-18s %lu",
+            snprintf(row, sizeof(row), "0x%03lX  %-23s %lu",
                      (unsigned long)entries[i].id, hex,
                      (unsigned long)entries[i].fps);
             lv_label_set_text(s_can_rows[i], row);

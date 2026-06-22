@@ -17,6 +17,7 @@ static void on_icon_clicked(lv_event_t *e)
 
 void status_icon_create(lv_obj_t *parent_scr)
 {
+    if (s_icon) return;   /* nur einmal initialisieren */
     s_parent_scr = parent_scr;
 
     /* Runde Klickfläche als Container, damit der Tap-Bereich großzügig ist. */
