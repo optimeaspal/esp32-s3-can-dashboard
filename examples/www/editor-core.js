@@ -38,12 +38,17 @@ function defaultWidget(type, signalName) {
   };
 }
 
-// Beispielwert = 70 % des Anzeigebereichs.
-function sampleValue(signal) {
+// Beispielwert bei einem bestimmten Anteil (0…1) des Anzeigebereichs.
+function sampleValueAt(signal, pct) {
   const min = Number(signal.min) || 0;
   const max = Number(signal.max);
   const hi = isNaN(max) ? 100 : max;
-  return min + 0.7 * (hi - min);
+  return min + pct * (hi - min);
+}
+
+// Beispielwert = 70 % des Anzeigebereichs (Default für die Vorschau).
+function sampleValue(signal) {
+  return sampleValueAt(signal, 0.7);
 }
 
 // Warnfarbe greift, wenn Schwelle > 0 und Wert >= Schwelle.
@@ -133,7 +138,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     WIDGET_TYPES, DISPLAY, LIMITS,
     emptyConfig, defaultSignal, defaultWidget,
-    sampleValue, isWarning, normalizeColor,
+    sampleValue, sampleValueAt, isWarning, normalizeColor,
     validateConfig, serializeConfig,
   };
 }

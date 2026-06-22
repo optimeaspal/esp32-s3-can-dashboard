@@ -33,6 +33,18 @@ test('sampleValue = min + 0.7*(max-min)', () => {
   assert.equal(core.sampleValue({ min: 1000, max: 2000 }), 1700);
 });
 
+test('sampleValueAt skaliert linear über den Bereich', () => {
+  assert.equal(core.sampleValueAt({ min: 0, max: 100 }, 0), 0);
+  assert.equal(core.sampleValueAt({ min: 0, max: 100 }, 0.5), 50);
+  assert.equal(core.sampleValueAt({ min: 0, max: 100 }, 1.0), 100);
+  assert.equal(core.sampleValueAt({ min: 1000, max: 2000 }, 0.5), 1500);
+});
+
+test('sampleValue entspricht sampleValueAt mit 0.7', () => {
+  const sig = { min: 0, max: 100 };
+  assert.equal(core.sampleValue(sig), core.sampleValueAt(sig, 0.7));
+});
+
 test('isWarning nur wenn Schwelle > 0 und Wert >= Schwelle', () => {
   assert.equal(core.isWarning({ warning_threshold: 50 }, 70), true);
   assert.equal(core.isWarning({ warning_threshold: 90 }, 70), false);
