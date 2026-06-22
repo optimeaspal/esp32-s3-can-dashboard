@@ -3,21 +3,64 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CAN Dashboard – Konfiguration</title>
+  <title>CAN Dashboard – Editor</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <header>
+    <h1>CAN Dashboard · Editor</h1>
+    <div id="banner" class="banner hidden"></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="layout">▦ Layout</button>
+      <button class="tab" data-tab="signals">⊟ Signale</button>
+      <button class="tab" data-tab="backup">⇅ Backup</button>
+    </nav>
+  </header>
+
   <main>
-    <h1>CAN Dashboard</h1>
-    <section class="card">
-      <h2>dashboard.json hochladen</h2>
-      <p>Datei wählen und hochladen. Das Gerät prüft die Konfiguration und
-         startet bei Erfolg neu.</p>
-      <input type="file" id="file" accept=".json,application/json">
-      <button id="upload">Hochladen</button>
+    <!-- Layout-Tab -->
+    <section id="tab-layout" class="tabpanel">
+      <div class="toolbar">
+        <div id="page-tabs" class="page-tabs"></div>
+        <button id="add-widget">＋ Widget</button>
+      </div>
+      <div class="layout-grid">
+        <div id="canvas-wrap" class="canvas-wrap">
+          <div id="canvas" class="canvas"></div>
+        </div>
+        <aside id="prop-panel" class="prop-panel">
+          <p class="muted">Kein Widget ausgewählt.</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Signale-Tab -->
+    <section id="tab-signals" class="tabpanel hidden">
+      <button id="add-signal">＋ Signal</button>
+      <div class="table-wrap"><table id="signal-table"></table></div>
+    </section>
+
+    <!-- Backup-Tab -->
+    <section id="tab-backup" class="tabpanel hidden">
+      <div class="card">
+        <h2>Auf das Gerät speichern</h2>
+        <p>Speichert die Konfiguration auf das Gerät. Das Gerät prüft sie und
+           <strong>startet bei Erfolg neu</strong>.</p>
+        <button id="save-device">💾 Speichern &amp; Übernehmen</button>
+      </div>
+      <div class="card">
+        <h2>Datei</h2>
+        <p>Konfiguration als <code>dashboard.json</code> sichern oder eine
+           vorhandene Datei laden (auch ohne Gerät nutzbar).</p>
+        <button id="export-file">⬇ Exportieren</button>
+        <input type="file" id="import-file" accept=".json,application/json">
+        <button id="new-config">Neu (leeres Skelett)</button>
+      </div>
       <pre id="status"></pre>
     </section>
   </main>
+
+  <script src="editor-core.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
