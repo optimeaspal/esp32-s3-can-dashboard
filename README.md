@@ -1,22 +1,54 @@
 # ESP32-S3 CAN Dashboard
 
-Grafisches CAN-Bus-Dashboard auf dem **Waveshare ESP32-S3-Touch-LCD-7** (7" IPS, 800×480).  
-LVGL-Widgets (Gauge, Chart, Bar, LED) visualisieren CAN-Signale in Echtzeit.
+Grafisches, **frei konfigurierbares** CAN-Bus-Dashboard für den
+**Waveshare ESP32-S3-Touch-LCD-7** (7″ IPS, 800×480, kapazitiver Touch).
+LVGL-Widgets (Gauge, Arc, Chart, Bar, LED, Label) visualisieren CAN-Signale in
+Echtzeit. Layout, Signal-Mapping und Farben werden über eine `dashboard.json`
+auf der SD-Karte definiert – **ohne Neukompilieren**. Bearbeitet wird die
+Konfiguration komfortabel über einen mitgelieferten **Web-Editor**, die fertige
+Datei kann per **WLAN** auf das Gerät hochgeladen werden.
+
+---
+
+## Features
+
+- **JSON-konfiguriertes Dashboard** – Signale, Seiten und Widgets in
+  `dashboard.json`; keine Code-Änderung, kein Flashen nötig.
+- **6 Widget-Typen** – `gauge`, `arc`, `chart`, `bar`, `led`, `label`, pixelgenau
+  platzierbar auf einem 800×480-Raster.
+- **Mehrere Seiten** mit horizontaler Wisch-Navigation und Seiten-Indikator (Punkte).
+- **Echter CAN-Bus** (TWAI/TJA1051, 25 kBit/s … 1 MBit/s) **oder Simulator** –
+  per Schalter umstellbar, der Simulator erzeugt synthetische Werte ohne Bus.
+- **Flexible Signal-Dekodierung** – Byte-Offset/-Länge, Little-/Big-Endian,
+  signed/unsigned Integer oder IEEE-754-Float, Scale + Offset, Einheit.
+- **Stale-Erkennung** – Widgets werden ausgegraut, wenn ein Signal länger als sein
+  Timeout kein Update bekommt.
+- **Warnschwellen** – pro Widget eine Schwelle mit eigener Warnfarbe.
+- **Web-Editor** – Konfiguration visuell bearbeiten (Canvas mit Drag & Resize,
+  gerätegetreue Widget-Vorschau, Farbwähler). Läuft auf dem Gerät **oder offline
+  im Browser**.
+- **Drahtloser Upload** – Konfiguration via Browser hochladen
+  (`http://dashboard.local`); das Gerät **validiert vor dem Ersetzen** und startet
+  bei Erfolg neu.
+- **Native Unit-Tests** – Dekodierungs-, Parser- und Editor-Logik auf dem PC
+  testbar (kein Board nötig).
+
+---
 
 ## Hardware
 
 | Komponente | Detail |
 |---|---|
 | MCU | ESP32-S3, Dual-Core 240 MHz |
-| Display | 7" IPS 800×480, ST7701, RGB-Interface |
+| Display | 7″ IPS 800×480, ST7701, RGB-Interface |
 | Touch | GT911, kapazitiv, 5-Punkt |
 | Flash | 8 MB QIO |
 | PSRAM | 8 MB Octal |
 | CAN-Transceiver | TJA1051, onboard |
-| IO-Expander | CH422G (I²C 0x24/0x38) |
-| TF-Karte | vorhanden (SD_CS über CH422G) |
+| IO-Expander | CH422G (I²C, steuert u.a. SD-CS und USB/CAN-Routing) |
+| SD/TF-Karte | Pflicht – enthält `dashboard.json` (und optional `wifi.json`, `www/`) |
 
-### Pinbelegung CAN
+### Pinbelegung
 
 | Signal | GPIO |
 |---|---|
@@ -24,27 +56,27 @@ LVGL-Widgets (Gauge, Chart, Bar, LED) visualisieren CAN-Signale in Echtzeit.
 | CAN RX | GPIO 19 |
 | I²C SDA (CH422G/GT911) | GPIO 8 |
 | I²C SCL (CH422G/GT911) | GPIO 9 |
+| SD SPI MOSI / MISO / CLK | GPIO 11 / 13 / 12 |
+| SD Chip-Select | über CH422G-Pin 4 (nicht direkter GPIO) |
 
-> **Hinweis:** Der CH422G-Expander schaltet bei CAN-Init den USB_SEL-Pin HIGH –  
-> dadurch werden GPIO 19/20 zum TJA1051-Transceiver geroutet (nicht USB).
+> **Hinweis:** Der CH422G-Expander schaltet bei CAN-Init das USB/CAN-Routing um,
+> sodass GPIO 19/20 zum TJA1051-Transceiver geführt werden.
 
-### RGB-Display-Pins (ST7701, 16-Bit-Bus)
+### CAN-Bus anschließen
 
-VSYNC=3, HSYNC=46, DE=5, PCLK=7  
-DATA0..15 = 14, 38, 18, 17, 10, 39, 0, 45, 48, 47, 21, 1, 2, 42, 41, 40
+- Board-seitig: PH2.0-2-Pin (CAN-H, CAN-L) + separater GND-Draht an Board-GND.
+- **Terminierung:** 120 Ω an beiden Bus-Enden – prüfen, ob am Board bereits vorhanden.
+- Bitrate muss zum Bus passen (`CONFIG_CAN_BITRATE_KBPS`, Standard 500 kBit/s).
 
-## Entwicklungsumgebung
+---
 
-- **PlatformIO** (VS Code Extension)
-- **Framework:** ESP-IDF (`framework = espidf`)
-- **ESP-IDF Version:** ≥ 5.1.0
-
-## Setup
+## Schnellstart
 
 ### 1. Voraussetzungen
 
-- VS Code + PlatformIO Extension installieren
-- Git, PlatformIO CLI
+- VS Code + **PlatformIO**-Extension (oder PlatformIO CLI)
+- Git
+- Framework: **ESP-IDF** (≥ 5.1, wird von PlatformIO automatisch bereitgestellt)
 
 ### 2. Repository klonen
 
@@ -53,124 +85,228 @@ git clone git@github.com:optimeaspal/esp32-s3-can-dashboard.git
 cd esp32-s3-can-dashboard
 ```
 
-### 3. Build
+### 3. Bauen, flashen, beobachten
+
+Board per USB-C anschließen (ggf. BOOT halten während RESET für den Boot-Modus):
 
 ```bash
-pio run -e esp32-s3-touch-lcd-7
+pio run -e esp32-s3-touch-lcd-7              # bauen
+pio run -e esp32-s3-touch-lcd-7 -t upload    # flashen
+pio device monitor                           # serielle Ausgabe (115200 Baud)
 ```
 
-Beim ersten Build werden LVGL und der GT911-Treiber automatisch via ESP-IDF Component Manager heruntergeladen.
+Beim ersten Build lädt der ESP-IDF Component Manager LVGL und den GT911-Treiber
+automatisch nach.
 
-### 4. Flash & Monitor
+### 4. SD-Karte vorbereiten
 
-Board via USB-C anschließen. Falls nötig: Boot-Modus durch Halten von BOOT während RESET.
+Die SD-Karte ist **erforderlich** – ohne `dashboard.json` zeigt das Gerät einen
+Fehlerbildschirm. FAT32 formatieren und folgende Struktur anlegen:
 
-```bash
-pio run -e esp32-s3-touch-lcd-7 -t upload
-pio device monitor
+```
+SD-Karte (Root)
+├── dashboard.json        ← Pflicht: Dashboard-Konfiguration
+├── wifi.json             ← optional: WLAN-Zugangsdaten für den Upload
+└── www/                  ← optional: Web-Editor-Assets (für Bedienung am Gerät)
+    ├── index.html
+    ├── style.css
+    ├── editor-core.js
+    └── app.js
 ```
 
-### 5. Unit-Tests (kein Board erforderlich)
+Als Startpunkt die Beispiele aus `examples/` kopieren:
 
-```bash
-pio test -e native
+- `examples/dashboard.json` – vollständiges 2-Seiten-Beispiel (oder
+  `dashboard.minimal.json` als Minimalvariante)
+- `examples/wifi.json` – Vorlage für die WLAN-Zugangsdaten (SSID/Passwort eintragen)
+- `examples/www/*` – die vier Editor-Dateien nach `www/` kopieren
+
+> Lange Dateinamen (LFN) sind in der Firmware aktiviert – `dashboard.json` &
+> `dashboard.json.tmp` funktionieren also trotz 8.3-Default.
+
+---
+
+## Bedienung
+
+- **Seiten wechseln:** horizontal über das Display wischen. Die Punkte am unteren
+  Rand zeigen die aktive Seite (nur sichtbar ab 2 Seiten).
+- **Live-Werte:** Widgets aktualisieren sich automatisch aus den CAN-Daten
+  (bzw. vom Simulator).
+- **Stale/Verbindungsverlust:** Bleibt ein Signal länger als sein `stale_ms`-Timeout
+  ohne Update, wird das zugehörige Widget ausgegraut.
+- **Warnung:** Überschreitet ein Wert die `warning_threshold` eines Widgets,
+  wechselt es auf seine Warnfarbe.
+- **Konfiguration ändern:** entweder SD-Karte mit neuer `dashboard.json` umstecken
+  **oder** drahtlos über den Web-Editor hochladen (siehe unten). Nach erfolgreichem
+  Upload startet das Gerät automatisch mit der neuen Konfiguration neu.
+
+---
+
+## Web-Editor
+
+Visuelles Werkzeug zum Bearbeiten der `dashboard.json` (Signale, Seiten, Widgets)
+mit gerätegetreuer Vorschau. Reine Vanilla-HTML/CSS/JS-Anwendung – keine Frameworks,
+keine CDNs. Quellcode unter [`examples/www/`](examples/www/), Details in
+[`examples/www/README.md`](examples/www/README.md).
+
+### Variante A – am Gerät (drahtlos)
+
+1. `examples/wifi.json` anpassen (SSID + Passwort) und als `wifi.json` in den
+   SD-Root legen. Beim Start verbindet sich das Gerät im Hintergrund (Anzeige
+   bleibt < 3 s blockiert) und startet einen HTTP-Server.
+2. Editor im Browser öffnen: `http://dashboard.local` (mDNS) oder die IP aus dem
+   seriellen Log.
+3. Konfiguration bearbeiten → **„Speichern & Übernehmen"**. Das Gerät validiert die
+   Datei, ersetzt sie atomar und startet neu.
+
+`wifi.json`-Format (mehrere Netze werden der Reihe nach probiert):
+
+```json
+{
+  "version": "1.0",
+  "hostname": "dashboard",
+  "networks": [
+    { "ssid": "MEIN-WLAN", "password": "GEHEIM" }
+  ]
+}
 ```
 
-Testet die CAN-Signal-Dekodierungslogik nativ auf dem PC (Unity-Framework).
+### Variante B – offline am PC (ohne Gerät)
 
-## Konfiguration
+1. `examples/www/start-editor-offline.bat` doppelklicken (startet einen lokalen
+   HTTP-Server, benötigt Python) – oder `index.html` direkt im Browser öffnen.
+2. Neue Konfiguration erstellen oder vorhandene `dashboard.json` importieren,
+   bearbeiten und wieder **exportieren**.
+3. Exportierte Datei auf die SD-Karte kopieren oder über Variante A hochladen.
+   („Speichern & Übernehmen" ist offline deaktiviert.)
 
-Anpassungen ohne Code-Änderung über `sdkconfig.defaults` oder `pio run -t menuconfig`:
+---
+
+## Konfigurationsformat (`dashboard.json`)
+
+Kurzüberblick – die vollständige Feld-Referenz steht im
+[JSON-Schema-Vertrag](specs/001-json-config-dashboard/contracts/dashboard-json-schema.md).
+
+```json
+{
+  "version": "1.0",
+  "signals": [ /* 1–32 Signale */ ],
+  "pages":   [ /* 1–8 Seiten mit je 0–16 Widgets */ ],
+  "tx_commands": []
+}
+```
+
+**Signal** (Auswahl): `name` (eindeutig), `can_id` (`"0x102"` oder dezimal),
+`byte_offset`, `byte_length` (1/2/4), `endianness` (`little`/`big`), optional
+`signed`, `float`, `scale`, `offset`, `unit`, `min`/`max`, `stale_ms`, `simulated`.
+
+**Widget** (Auswahl): `type` (`gauge`/`arc`/`chart`/`bar`/`led`/`label`), `x`, `y`,
+`width`, `height`, `signal` (Referenz auf einen Signalnamen), optional `title`,
+`normal_color`, `warning_color`, `warning_threshold`, `background_color`
+(Farben als `"#RRGGBB"`).
+
+Validierungsregeln (u.a.): Signalnamen eindeutig, `min < max`,
+`byte_offset + byte_length ≤ 8`, jede Widget-`signal`-Referenz muss existieren.
+Bei Fehlern zeigt das Gerät eine konkrete Meldung und übernimmt die alte
+Konfiguration nicht.
+
+---
+
+## Konfiguration der Firmware (Build-Zeit)
+
+Über `pio run -t menuconfig` oder `sdkconfig.defaults`:
 
 | Parameter | Kconfig | Standard |
 |---|---|---|
-| CAN-Bitrate | `CONFIG_CAN_BITRATE_KBPS` | 500 kBit/s |
-| CAN TX GPIO | `CONFIG_EXAMPLE_TX_GPIO_NUM` | 20 |
-| CAN RX GPIO | `CONFIG_EXAMPLE_RX_GPIO_NUM` | 19 |
-| Signal Stale-Timeout | `CONFIG_CAN_SIGNAL_STALE_MS` | 2000 ms |
+| CAN-Bitrate (kBit/s) | `CONFIG_CAN_BITRATE_KBPS` | 500 |
+| CAN TX / RX GPIO | `CONFIG_EXAMPLE_TX_GPIO_NUM` / `_RX_` | 20 / 19 |
+| Stale-Timeout (ms) | `CONFIG_CAN_SIGNAL_STALE_MS` | 2000 |
 | RX Queue-Länge | `CONFIG_CAN_RX_QUEUE_LEN` | 32 |
+| **CAN-Simulator** | `CONFIG_CAN_SIMULATOR_ENABLE` | `y` |
+| Dashboard-Pfad | `CONFIG_DASHBOARD_JSON_PATH` | `/sdcard/dashboard.json` |
+| WLAN-Upload | `CONFIG_DASHBOARD_WIFI_ENABLE` | `y` |
+| WLAN-Pfad | `CONFIG_DASHBOARD_WIFI_PATH` | `/sdcard/wifi.json` |
+| HTTP-Port | `CONFIG_DASHBOARD_HTTP_PORT` | 80 |
 
-### CAN-Signale anpassen
+> **Echten CAN-Bus nutzen:** `CONFIG_CAN_SIMULATOR_ENABLE=n` setzen. Dann liefern
+> nur reale CAN-Frames Werte; Signale mit `"simulated": true` bleiben ohne Bus stale.
+> Mit `=y` erzeugt der Simulator für alle `simulated`-Signale synthetische Verläufe.
 
-Die Signal-Tabelle in [src/main.c](src/main.c) definiert welche CAN-IDs auf welche Widgets gemappt werden:
+> **Speicher-Hinweis:** Der interne DMA-RAM ist durch RGB-Framebuffer + LVGL sehr
+> knapp. `sdkconfig.defaults` lagert daher WiFi/LWIP-Puffer und große statische
+> Puffer ins PSRAM aus – diese Einstellungen nicht ohne Grund entfernen.
 
-```c
-const can_signal_t can_signals[] = {
-    { .can_id=0x101, .byte_offset=0, .byte_length=2, .scale=1.0f, ... },  // → Gauge
-    { .can_id=0x102, .byte_offset=0, .byte_length=1, .scale=1.0f, ... },  // → Chart
-    { .can_id=0x103, .byte_offset=0, .byte_length=1, .scale=100.0f/255.f }, // → Bar
-    { .can_id=0x104, .byte_offset=0, .byte_length=1, .scale=1.0f, ... },  // → LED
-};
-```
+---
 
 ## Architektur
 
 ```
 app_main()
-  │
-  ├─ waveshare_rgb_lcd_init()   ← HAL: ST7701-RGB + GT911-Touch + LVGL-Init
-  │
-  ├─ dashboard_create()         ← UI: LVGL-Screen mit 4 Widgets erstellen
-  │
-  ├─ lv_timer_create(dashboard_tick, 50ms)   ← UI-Update im LVGL-Task
-  │
-  └─ can_dispatcher_start()     ← CAN-Task (Core 0)
-         │
-         ├─ waveshare_twai_init()   ← HAL: CH422G + TWAI-Treiber
-         │
-         └─ Dispatcher-Loop:
-               twai_receive() → can_signal_decode() → xQueueSend(event_queue)
-                                                            │
-                                              dashboard_tick() ← lv_timer
-                                                xQueueReceive()
-                                                widget update (lv_meter/chart/bar/led)
-                                                stale-check → ausgegraut
+  ├─ waveshare_rgb_lcd_init()  ← ST7701-RGB + GT911-Touch + LVGL
+  ├─ waveshare_sd_port_init()  ← SD mounten, dashboard.json lesen
+  ├─ config_loader_parse()     ← JSON → dashboard_config_t (validiert)
+  ├─ dashboard_create()        ← LVGL-Seiten (Tileview) + Widgets aufbauen
+  ├─ can_dispatcher_start()    ← CAN-Task (Core 0): twai_receive → decode → Queue
+  │     └─ (alternativ) can_simulator: synthetische Werte
+  └─ network_task()            ← optional: WLAN verbinden + HTTP-Upload-Server
 ```
 
-### Datenmodell
+Widget-Updates laufen im LVGL-Timer-Task (Core 1) und konsumieren dekodierte
+Werte aus einer Queue; die Stale-Prüfung graut Widgets bei Timeout aus.
 
-- **`can_signal_t`** (`src/app/can_signal.h`): CAN-ID, Byte-Position, Länge, Endianness, Scale/Offset, Min/Max, Timeout
-- **`can_value_event_t`** (`src/app/can_dispatcher.h`): dekodierter Float-Wert + Zeitstempel pro Signal
-- **`dashboard_tick()`** konsumiert Events aus der Queue und aktualisiert LVGL-Widgets innerhalb des LVGL-Mutex
+---
 
 ## Projektstruktur
 
 ```
 ├── src/
-│   ├── Kconfig.projbuild    ← menuconfig-Einträge (Bitrate, GPIOs, Timeouts)
-│   ├── main.c               ← Signal-Tabelle, Initialisierungssequenz
-│   ├── hal/                 ← Hardware-Porting (ESP-IDF-abhängig)
-│   │   ├── lvgl_port.c/h
-│   │   ├── waveshare_rgb_lcd_port.c/h
-│   │   └── waveshare_twai_port.c/h
-│   ├── app/                 ← Anwendungslogik (hardware-unabhängig, testbar)
-│   │   ├── can_signal.c/h   ← Signal-Dekodierung
-│   │   └── can_dispatcher.c/h
-│   └── ui/                  ← LVGL-Dashboard
-│       └── dashboard.c/h
-├── test/
-│   └── test_can_signal.c    ← Unity-Tests (pio test -e native)
-├── platformio.ini
-├── sdkconfig.defaults
-└── .clang-format
+│   ├── main.c                  ← Initialisierungssequenz, Tasks
+│   ├── Kconfig.projbuild       ← menuconfig-Optionen
+│   ├── app/                    ← hardware-unabhängige, testbare Logik
+│   │   ├── can_signal.*        ← Signal-Dekodierung
+│   │   ├── can_dispatcher.*    ← Empfang + Verteilung
+│   │   ├── can_simulator.*     ← synthetische Werte
+│   │   ├── config_loader.*     ← dashboard.json parsen/validieren
+│   │   ├── config_types.h      ← Datenmodell
+│   │   └── wifi_credentials.*  ← wifi.json parsen
+│   ├── hal/                    ← ESP-IDF-/Board-Anbindung
+│   │   ├── lvgl_port.*  waveshare_rgb_lcd_port.*  waveshare_sd_port.*
+│   │   ├── waveshare_twai_port.*  waveshare_wifi_port.*
+│   │   └── web_server.*        ← HTTP-Server (Editor-Assets + /api/config)
+│   └── ui/                     ← LVGL-Dashboard
+│       ├── dashboard.*  nav_indicator.*  widget_registry.*
+│       └── widgets/            ← gauge/arc/chart/bar/led/label
+├── examples/
+│   ├── dashboard.json  dashboard.minimal.json  wifi.json
+│   └── www/                    ← Web-Editor (auf SD nach /www/ kopieren)
+├── test/                       ← native Unit-Tests + Fixtures
+├── specs/                      ← Spezifikationen & JSON-Schema-Vertrag
+├── platformio.ini  sdkconfig.defaults  default_8MB.csv
 ```
 
-## Test mit USB-CAN-A Adapter
+---
 
-Zum Testen ohne Fahrzeug-CAN-Bus:  
-→ USB-CAN-A-Tool aus `documents/USBCANV2.10.zip` verwenden und Test-Frames einspeisen:
+## Tests
 
-| Widget | CAN-ID | Beispiel-Frame |
+Native Tests laufen ohne Board auf dem PC (Unity bzw. Node):
+
+```bash
+pio test -e native                          # C-Logik: Dekodierung, Parser, Validierung
+node --test test/www/editor-core.test.cjs   # Editor-Kernlogik (DOM-frei)
+```
+
+---
+
+## CAN ohne Fahrzeug testen
+
+Test-Frames z.B. mit einem USB-CAN-Adapter einspeisen. Die CAN-IDs und der
+Wertebereich richten sich nach der jeweils geladenen `dashboard.json`. Für das
+Beispiel `examples/dashboard.json` (Simulator aus) etwa:
+
+| Signal | CAN-ID | Beispiel-Frame (Little-Endian) |
 |---|---|---|
-| Gauge (RPM) | 0x101 | `B8 0B 00 00 00 00 00 00` (= 3000 RPM) |
-| Chart (Temp) | 0x102 | `64 00 00 00 00 00 00 00` (= 60°C) |
-| Bar (Fuel) | 0x103 | `80 00 00 00 00 00 00 00` (≈ 50%) |
-| LED (Warn) | 0x104 | `01 00 00 00 00 00 00 00` (= AN) |
+| RPM (gauge) | 0x102 | `B8 0B 00 00 00 00 00 00` (= 3000) |
+| Kraftstoff (arc/bar) | 0x103 | `80 …` (raw 128 × 0.392 ≈ 50 %) |
 
-## Roadmap
-
-- [ ] Schritt 2: Hardware-Verifikation (Display, Touch, CAN) mit dem Board
-- [ ] JSON-basierte Konfiguration auf TF-Karte (Signal-Tabelle + Widget-Layout)
-- [ ] Spec-Kit-Phase: formale Spezifikation der konfigurierbaren Ausbaustufe
-- [ ] Mehrere Dashboard-Seiten (Touch-Wischgesten)
-- [ ] Helligkeitssteuerung über Touch
+Alternativ einfach den Simulator aktiviert lassen (`CONFIG_CAN_SIMULATOR_ENABLE=y`),
+dann werden alle `simulated`-Signale ohne Bus animiert.
