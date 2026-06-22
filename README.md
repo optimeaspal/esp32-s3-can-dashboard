@@ -30,6 +30,10 @@ Datei kann per **WLAN** auf das Gerät hochgeladen werden.
 - **Drahtloser Upload** – Konfiguration via Browser hochladen
   (`http://dashboard.local`); das Gerät **validiert vor dem Ersetzen** und startet
   bei Erfolg neu.
+- **Settings-/Info-Screen** – ein Zahnrad-Icon (Farbe zeigt den WLAN-Status)
+  öffnet eine read-only Diagnoseseite: WLAN/IP, Geräte- & Firmware-Info, SD-Status
+  und ein **Live-CAN-RX-Monitor** (empfangene Frames je CAN-ID mit Datenbytes und
+  Rate) – ideal zur Inbetriebnahme direkt am Gerät, ohne seriellen Monitor.
 - **Native Unit-Tests** – Dekodierungs-, Parser- und Editor-Logik auf dem PC
   testbar (kein Board nötig).
 
@@ -139,6 +143,29 @@ Als Startpunkt die Beispiele aus `examples/` kopieren:
 - **Konfiguration ändern:** entweder SD-Karte mit neuer `dashboard.json` umstecken
   **oder** drahtlos über den Web-Editor hochladen (siehe unten). Nach erfolgreichem
   Upload startet das Gerät automatisch mit der neuen Konfiguration neu.
+- **Settings-/Info-Screen:** Das **Zahnrad-Icon** oben rechts (Farbe = WLAN-Status:
+  grün verbunden / gelb verbindet / grau inaktiv / rot fehlgeschlagen) öffnet die
+  Diagnoseseite; **„‹ Zurueck"** führt zum Dashboard zurück (siehe unten).
+
+---
+
+## Settings-/Info-Screen
+
+Read-only Diagnoseseite zur Inbetriebnahme direkt am Gerät – erreichbar über das
+Zahnrad-Icon oben rechts (über allen Dashboard-Seiten sichtbar). Zweispaltiges
+Layout:
+
+- **WLAN / Netzwerk** – SSID, Verbindungsstatus, IP-Adresse, mDNS-Hostname
+  (`dashboard.local`), Signalstärke (RSSI). Bei deaktiviertem WLAN: „WLAN deaktiviert".
+- **Gerät / Firmware** – Firmware-Version, Build-Datum, Uptime, freier Heap + PSRAM,
+  Anzahl geladener Seiten.
+- **SD-Karte** – erkannt ja/nein, Vorhandensein von `dashboard.json` und `wifi.json`.
+- **CAN-RX-Monitor** – live empfangene Frames **gruppiert pro CAN-ID** (sortiert),
+  je Zeile `ID | letzte Datenbytes (hex) | Frames/s`; Kopfzeile mit ID-Anzahl und
+  Gesamt-Framerate. Aktualisierung ~4×/s, nur solange der Screen offen ist.
+
+> v1 ist bewusst **rein informativ** (keine Eingaben). Der Screen ist als
+> erweiterbarer Rahmen gebaut, einfache Aktionen können später ergänzt werden.
 
 ---
 
@@ -253,13 +280,17 @@ app_main()
   ├─ waveshare_sd_port_init()  ← SD mounten, dashboard.json lesen
   ├─ config_loader_parse()     ← JSON → dashboard_config_t (validiert)
   ├─ dashboard_create()        ← LVGL-Seiten (Tileview) + Widgets aufbauen
+  ├─ status_icon_create()      ← Zahnrad-Icon (öffnet Settings-/Info-Screen)
   ├─ can_dispatcher_start()    ← CAN-Task (Core 0): twai_receive → decode → Queue
-  │     └─ (alternativ) can_simulator: synthetische Werte
+  │     ├─ (alternativ) can_simulator: synthetische Werte
+  │     └─ can_monitor: Pro-ID-Statistik für den CAN-RX-Monitor
   └─ network_task()            ← optional: WLAN verbinden + HTTP-Upload-Server
 ```
 
 Widget-Updates laufen im LVGL-Timer-Task (Core 1) und konsumieren dekodierte
-Werte aus einer Queue; die Stale-Prüfung graut Widgets bei Timeout aus.
+Werte aus einer Queue; die Stale-Prüfung graut Widgets bei Timeout aus. Der
+Settings-/Info-Screen pollt per LVGL-Timer den WLAN-Status (Icon-Farbe) und einen
+thread-sicheren Snapshot der `can_monitor`-Tabelle (CAN-RX-Monitor).
 
 ---
 
@@ -272,6 +303,7 @@ Werte aus einer Queue; die Stale-Prüfung graut Widgets bei Timeout aus.
 │   ├── app/                    ← hardware-unabhängige, testbare Logik
 │   │   ├── can_signal.*        ← Signal-Dekodierung
 │   │   ├── can_dispatcher.*    ← Empfang + Verteilung
+│   │   ├── can_monitor.*       ← Pro-ID-Statistik (CAN-RX-Monitor)
 │   │   ├── can_simulator.*     ← synthetische Werte
 │   │   ├── config_loader.*     ← dashboard.json parsen/validieren
 │   │   ├── config_types.h      ← Datenmodell
@@ -282,6 +314,8 @@ Werte aus einer Queue; die Stale-Prüfung graut Widgets bei Timeout aus.
 │   │   └── web_server.*        ← HTTP-Server (Editor-Assets + /api/config)
 │   └── ui/                     ← LVGL-Dashboard
 │       ├── dashboard.*  nav_indicator.*  widget_registry.*
+│       ├── status_icon.*       ← Zahnrad-Icon (WLAN-Statusfarbe)
+│       ├── settings_screen.*   ← Settings-/Info-Screen (Diagnose, CAN-RX-Monitor)
 │       └── widgets/            ← gauge/arc/chart/bar/led/label
 ├── examples/
 │   ├── dashboard.json  dashboard.minimal.json  wifi.json
