@@ -22,6 +22,17 @@ code { color: #9cf; }
 .page-tab { background: #141a20; color: #8aa; border: 1px solid #2a3540;
             border-radius: 4px; padding: 0.3em 0.8em; cursor: pointer; font-size: 0.85em; }
 .page-tab.active { background: #2b3744; color: #fff; }
+/* Inline-Umbenennen: Eingabefeld in Tab-Größe. */
+.page-rename { background: #0d1116; color: #fff; border: 1px solid #4af;
+               border-radius: 4px; padding: 0.3em 0.5em; font-size: 0.85em; width: 8em; }
+/* Lösch-Button am aktiven Seiten-Tab. */
+.page-del { background: #7a2a2a; padding: 0.3em 0.55em; font-size: 0.85em; border-radius: 4px; }
+
+/* Vorschau-Wert-Schieberegler in der Layout-Toolbar. */
+.preview-ctl { display: flex; align-items: center; gap: 0.4em; font-size: 0.8em;
+               color: #9cc; white-space: nowrap; }
+.preview-ctl input[type=range] { width: 9em; cursor: pointer; }
+#preview-pct { min-width: 3em; color: #ecf0f1; }
 
 button { background: #2563a8; color: #fff; border: 0; border-radius: 6px;
          padding: 0.5em 1em; font-size: 0.95em; cursor: pointer; }

@@ -11,6 +11,18 @@ keine Frameworks, keine CDNs.
 | `editor-core.js` | Reine Logik (Defaults, Validierung, Serialisierung) – DOM-frei, in Node testbar |
 | `app.js` | DOM-Verdrahtung: Laden, Tabs, Canvas, Drag/Resize, Backup |
 
+## Bedienung (Layout-Tab)
+
+- **Widget platzieren:** mit der Maus ziehen, an der Ecke per Anfasser skalieren.
+- **Pixelgenau:** ausgewähltes Widget mit den **Pfeiltasten** verschieben
+  (1 px, mit **Shift** 10 px), **Entf/Backspace** löscht es, **Esc** hebt die
+  Auswahl auf (nur wenn der Fokus nicht in einem Eingabefeld liegt).
+- **Vorschau-Wert:** der Schieberegler über dem Canvas treibt den Beispielwert
+  aller Widgets von 0–100 % durch – so lassen sich Warnschwelle und Farben über
+  den ganzen Bereich prüfen (verändert die Konfiguration nicht).
+- **Seiten:** Tab anklicken zum Wechseln, **Doppelklick** zum Umbenennen,
+  🗑 am aktiven Tab zum Löschen (mind. eine Seite bleibt).
+
 ## Offline auf dem PC nutzen (ohne Gerät)
 
 Der Editor erkennt automatisch, ob ein Gerät erreichbar ist. Ist keines da,

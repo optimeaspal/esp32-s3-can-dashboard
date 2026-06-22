@@ -5,6 +5,7 @@ let config = emptyConfig();   // Single Source of Truth
 let online = false;           // wird true, wenn GET /api/config gelingt
 let currentPage = 0;          // aktive Seite im Layout-Tab
 let selectedWidget = null;    // Referenz auf das ausgewählte Widget-Objekt
+let previewPct = 0.7;         // Vorschau-Beispielwert (nur Anzeige, nicht in config)
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
@@ -32,6 +33,7 @@ async function init() {
   wireSignals();
   wireBackup();
   wireLayoutToolbar();
+  wireKeyboard();
   renderAll();
 }
 
@@ -200,6 +202,15 @@ function wireLayoutToolbar() {
     selectedWidget = w;
     renderCanvas(); renderPropPanel();
   });
+
+  // Vorschau-Wert-Schieberegler: steuert den Beispielwert aller Widgets (nur
+  // Anzeige). Bei jedem Schieben Canvas neu zeichnen.
+  const slider = $('#preview-slider');
+  slider.addEventListener('input', () => {
+    previewPct = Number(slider.value) / 100;
+    $('#preview-pct').textContent = slider.value + ' %';
+    renderCanvas();
+  });
 }
 
 function renderPageTabs() {
@@ -209,8 +220,24 @@ function renderPageTabs() {
     const b = document.createElement('button');
     b.className = 'page-tab' + (i === currentPage ? ' active' : '');
     b.textContent = (p.title || 'Seite ' + (i + 1));
-    b.addEventListener('click', () => { currentPage = i; selectedWidget = null; renderCanvas(); renderPropPanel(); renderPageTabs(); });
+    b.title = 'Doppelklick zum Umbenennen';
+    // Nur bei echtem Seitenwechsel neu rendern – sonst würde das Ersetzen des
+    // Tab-Elements den Doppelklick (umbenennen) auf dem aktiven Tab vereiteln.
+    b.addEventListener('click', () => {
+      if (i === currentPage) return;
+      currentPage = i; selectedWidget = null; renderCanvas(); renderPropPanel(); renderPageTabs();
+    });
+    b.addEventListener('dblclick', () => startRenamePage(i, b));
     host.appendChild(b);
+
+    // Lösch-Button nur am aktiven Tab (mind. eine Seite muss bleiben).
+    if (i === currentPage && config.pages.length > 1) {
+      const del = document.createElement('button');
+      del.className = 'page-del'; del.textContent = '🗑';
+      del.title = 'Seite löschen';
+      del.addEventListener('click', () => deletePage(i));
+      host.appendChild(del);
+    }
   });
   const add = document.createElement('button');
   add.className = 'page-tab'; add.textContent = '＋';
@@ -221,6 +248,88 @@ function renderPageTabs() {
     renderPageTabs(); renderCanvas(); renderPropPanel();
   });
   host.appendChild(add);
+}
+
+// Seiten-Tab durch ein Inline-Eingabefeld ersetzen. Enter/blur übernimmt,
+// Esc verwirft; leerer/Whitespace-Titel wird auf den alten Titel zurückgesetzt.
+function startRenamePage(i, tabBtn) {
+  const oldTitle = config.pages[i].title || 'Seite ' + (i + 1);
+  const inp = document.createElement('input');
+  inp.className = 'page-rename';
+  inp.value = oldTitle;
+  inp.maxLength = LIMITS.titleLen;
+  tabBtn.replaceWith(inp);
+  inp.focus(); inp.select();
+
+  let done = false;
+  const commit = () => {
+    if (done) return; done = true;
+    const v = inp.value.trim();
+    config.pages[i].title = v || oldTitle;
+    renderPageTabs();
+  };
+  const cancel = () => {
+    if (done) return; done = true;
+    renderPageTabs();
+  };
+  inp.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
+  });
+  inp.addEventListener('blur', commit);
+}
+
+// Aktive Seite löschen. Bei vorhandenen Widgets Rückfrage; danach Indizes klemmen.
+function deletePage(i) {
+  if (config.pages.length <= 1) { alert('Mindestens eine Seite muss bleiben.'); return; }
+  const n = (config.pages[i].widgets || []).length;
+  if (n > 0 && !confirm('Seite "' + (config.pages[i].title || 'Seite ' + (i + 1)) +
+      '" mit ' + n + ' Widget(s) löschen?')) return;
+  config.pages.splice(i, 1);
+  currentPage = Math.min(currentPage, config.pages.length - 1);
+  selectedWidget = null;
+  renderPageTabs(); renderCanvas(); renderPropPanel();
+}
+
+// ── Layout: Tastatur-Bedienung ───────────────────────────────────────────
+// Nur aktiv, wenn ein Widget ausgewählt ist, der Fokus nicht in einem
+// Eingabefeld liegt und der Layout-Tab sichtbar ist (sonst keine unsichtbaren
+// Änderungen). Pfeile = 1 px (Shift = 10 px), Entf/Backspace = löschen, Esc = Abwahl.
+function wireKeyboard() {
+  document.addEventListener('keydown', ev => {
+    if (!selectedWidget) return;
+    const ae = document.activeElement;
+    if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+    if ($('#tab-layout').classList.contains('hidden')) return;
+
+    const w = selectedWidget;
+    const step = ev.shiftKey ? 10 : 1;
+    let handled = true;
+    switch (ev.key) {
+      case 'ArrowLeft':  w.x = clamp(w.x - step, 0, DISPLAY.w - w.width);  break;
+      case 'ArrowRight': w.x = clamp(w.x + step, 0, DISPLAY.w - w.width);  break;
+      case 'ArrowUp':    w.y = clamp(w.y - step, 0, DISPLAY.h - w.height); break;
+      case 'ArrowDown':  w.y = clamp(w.y + step, 0, DISPLAY.h - w.height); break;
+      case 'Delete': case 'Backspace': {
+        const widgets = config.pages[currentPage].widgets;
+        widgets.splice(widgets.indexOf(w), 1);
+        selectedWidget = null;
+        renderCanvas(); renderPropPanel();
+        ev.preventDefault();
+        return;
+      }
+      case 'Escape':
+        selectedWidget = null;
+        renderCanvas(); renderPropPanel();
+        ev.preventDefault();
+        return;
+      default: handled = false;
+    }
+    if (handled) {
+      ev.preventDefault();        // kein Scrollen der Seite
+      renderCanvas(); syncPropPanel(w);
+    }
+  });
 }
 
 // ── Layout: Canvas ───────────────────────────────────────────────────────
@@ -283,7 +392,7 @@ function widgetPreview(w) {
   const sig = config.signals.find(s => s.name === w.signal) || { min: 0, max: 100, unit: '' };
   const min = Number(sig.min) || 0;
   const max = isNaN(Number(sig.max)) ? 100 : Number(sig.max);
-  const val = sampleValue(sig);
+  const val = sampleValueAt(sig, previewPct);
   const pct = Math.max(0, Math.min(1, (val - min) / ((max - min) || 1)));
   const color = isWarning(w, val)
     ? (normalizeColor(w.warning_color) || WARN_DEFAULT)

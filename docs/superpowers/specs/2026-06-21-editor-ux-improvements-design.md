@@ -1,7 +1,7 @@
 # Design: UX-Verbesserungen Dashboard-Editor
 
 **Datum**: 2026-06-21
-**Status**: Entwurf (zur Review)
+**Status**: Umgesetzt (2026-06-22, Branch `004-editor-ux-improvements`)
 **Kontext**: Folgearbeit zum Dashboard-Editor (Feature 003, Branch
 `003-dashboard-editor`). Setzt auf dem dort implementierten Stand auf
 (`examples/www/app.js`, `editor-core.js`, `index.html`, `style.css`).
