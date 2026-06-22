@@ -149,6 +149,13 @@ mit gerätegetreuer Vorschau. Reine Vanilla-HTML/CSS/JS-Anwendung – keine Fram
 keine CDNs. Quellcode unter [`examples/www/`](examples/www/), Details in
 [`examples/www/README.md`](examples/www/README.md).
 
+**Bedienung im Layout-Tab:** Widgets per Maus ziehen und am Eck-Anfasser
+skalieren; ein ausgewähltes Widget zusätzlich mit den **Pfeiltasten** (1 px,
+mit **Shift** 10 px) verschieben, **Entf** löschen, **Esc** abwählen. Der
+**Vorschau-Schieberegler** treibt den Beispielwert aller Widgets von 0–100 %
+durch (zum Prüfen von Warnschwelle und Farben). Seiten per **Doppelklick**
+umbenennen und über den 🗑-Button am aktiven Tab löschen.
+
 ### Variante A – am Gerät (drahtlos)
 
 1. `examples/wifi.json` anpassen (SSID + Passwort) und als `wifi.json` in den
