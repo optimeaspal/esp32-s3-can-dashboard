@@ -51,6 +51,18 @@ CONFIG_LV_USE_DEMO_BENCHMARK=y
 # Log: keine ANSI-Farbcodes (VS Code Output-Panel unterstützt kein ANSI)
 CONFIG_LOG_COLORS=n
 
+# WLAN: RX/TX-Buffer und LWIP ins PSRAM auslagern. Der RGB-LCD-Framebuffer +
+# LVGL belegen fast den gesamten internen DMA-RAM, sodass esp_wifi_init() sonst
+# mit ESP_ERR_NO_MEM abbricht ("Expected to init 10 rx buffer, actual is 0").
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# Interner RAM ist mit RGB-LCD + LVGL extrem knapp (~10 KB frei). Daher kleine
+# Allokationen (>4 KB) und große statische .bss-Puffer (z.B. der 16-KB-Upload-
+# Puffer im Web-Server) ins PSRAM auslagern. Ohne das schlägt das Anlegen des
+# 8-KB-HTTPD-Task-Stacks fehl (ESP_ERR_HTTPD_TASK).
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+
 # FATFS: Long Filenames aktivieren (Default ist 8.3 → "dashboard.json" mit
 # 9-Zeichen-Namen wäre sonst nicht auffindbar). LFN-Puffer im Heap, nicht auf
 # dem Stack, da der Mount-Task einen begrenzten Stack hat.

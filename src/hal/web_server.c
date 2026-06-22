@@ -6,6 +6,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_attr.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
@@ -28,9 +29,11 @@ static const char SKELETON_JSON[] =
     "{\"version\":\"1.0\",\"signals\":[],"
     "\"pages\":[{\"title\":\"Seite 1\",\"widgets\":[]}],\"tx_commands\":[]}";
 
-/* Upload-Puffer + validierender Parse-Scratch. static: nicht auf den Task-Stack. */
-static char               s_upload[UPLOAD_MAX + 1];
-static dashboard_config_t s_validate_cfg;
+/* Upload-Puffer + validierender Parse-Scratch. static: nicht auf den Task-Stack.
+ * EXT_RAM_BSS_ATTR: ins PSRAM, damit der knappe interne RAM frei bleibt (sonst
+ * fehlen die 8 KB für den HTTPD-Task-Stack). */
+EXT_RAM_BSS_ATTR static char               s_upload[UPLOAD_MAX + 1];
+EXT_RAM_BSS_ATTR static dashboard_config_t s_validate_cfg;
 
 /* MIME-Typ aus Dateiendung. */
 static const char *mime_for(const char *path)
