@@ -14,6 +14,8 @@
 #include "app/can_dispatcher.h"
 #include "app/can_simulator.h"
 #include "ui/dashboard.h"
+#include "ui/status_icon.h"
+#include "ui/settings_screen.h"
 
 #if CONFIG_DASHBOARD_WIFI_ENABLE
 #include "hal/waveshare_wifi_port.h"
@@ -128,7 +130,12 @@ void app_main(void)
     /* Dashboard aufbauen + periodischen Tick registrieren (innerhalb LVGL-Mutex) */
     lvgl_port_lock(-1);
     dashboard_create(&s_cfg, event_queue);
+    lv_obj_t *dashboard_scr = lv_scr_act();
+    settings_screen_set_config(&s_cfg);
+    status_icon_create(dashboard_scr);
     lv_timer_create((lv_timer_cb_t)dashboard_tick, 50, NULL);
+    lv_timer_create((lv_timer_cb_t)status_icon_tick, 1000, NULL);    /* WLAN-Farbe ~1 Hz */
+    lv_timer_create((lv_timer_cb_t)settings_screen_tick, 250, NULL); /* CAN-Tabelle ~4 Hz */
     lvgl_port_unlock();
 
 #if CONFIG_CAN_SIMULATOR_ENABLE
