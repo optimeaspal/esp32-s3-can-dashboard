@@ -39,7 +39,13 @@ void can_monitor_record(can_monitor_t *m, uint32_t id, bool extended,
 
 void can_monitor_update_fps(can_monitor_t *m, int64_t now_us)
 {
-    if (now_us - m->fps_window_start_us < 1000000)
+    /* Erster Aufruf: Fensterbeginn übernehmen, noch keine Rate ausgeben. */
+    if (!m->fps_initialized) {
+        m->fps_window_start_us = now_us;
+        m->fps_initialized     = true;
+        return;
+    }
+    if (now_us - m->fps_window_start_us < CAN_MONITOR_FPS_WINDOW_US)
         return;
     for (size_t i = 0; i < m->count; i++) {
         m->entries[i].fps          = m->entries[i].window_count;

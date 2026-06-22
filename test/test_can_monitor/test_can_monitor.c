@@ -83,8 +83,13 @@ void test_fps_window(void)
     for (int i = 0; i < 5; i++)
         can_monitor_record(&m, 0x100, false, d, 1, 100);
 
-    can_monitor_update_fps(&m, 500000);     /* 0,5 s → noch nichts */
+    /* Erster Aufruf: initialisiert Fensterbeginn bei 0 µs, kein Flush. */
+    can_monitor_update_fps(&m, 0);
     can_monitor_entry_t out[CAN_MONITOR_MAX_IDS];
+    can_monitor_snapshot(&m, out, CAN_MONITOR_MAX_IDS);
+    TEST_ASSERT_EQUAL_UINT32(0, out[0].fps);
+
+    can_monitor_update_fps(&m, 500000);     /* 0,5 s → noch nichts */
     can_monitor_snapshot(&m, out, CAN_MONITOR_MAX_IDS);
     TEST_ASSERT_EQUAL_UINT32(0, out[0].fps);
 
@@ -99,6 +104,37 @@ void test_fps_window(void)
     TEST_ASSERT_EQUAL_UINT32(1, out[0].fps);
 }
 
+/* Gleiche ID, aber standard vs. extended → zwei getrennte Einträge. */
+void test_standard_and_extended_are_distinct(void)
+{
+    uint8_t d[] = {0x11};
+    can_monitor_record(&m, 0x100, false, d, 1, 1);
+    can_monitor_record(&m, 0x100, true,  d, 1, 2);
+    TEST_ASSERT_EQUAL_UINT(2, m.count);
+
+    can_monitor_entry_t out[CAN_MONITOR_MAX_IDS];
+    size_t n = can_monitor_snapshot(&m, out, CAN_MONITOR_MAX_IDS);
+    TEST_ASSERT_EQUAL_UINT(2, n);
+    /* Sortierung: standard (extended=false) vor extended */
+    TEST_ASSERT_FALSE(out[0].extended);
+    TEST_ASSERT_TRUE(out[1].extended);
+}
+
+/* snapshot mit max < count liefert nur max Einträge. */
+void test_snapshot_truncates_to_max(void)
+{
+    uint8_t d[] = {0x00};
+    for (uint32_t i = 0; i < 5; i++)
+        can_monitor_record(&m, 0x100 + i, false, d, 1, i);
+
+    can_monitor_entry_t out[3];
+    size_t n = can_monitor_snapshot(&m, out, 3);
+    TEST_ASSERT_EQUAL_UINT(3, n);
+    /* niedrigste IDs zuerst (sortiert) */
+    TEST_ASSERT_EQUAL_UINT32(0x100, out[0].id);
+    TEST_ASSERT_EQUAL_UINT32(0x102, out[2].id);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -107,5 +143,7 @@ int main(void)
     RUN_TEST(test_table_full_drops_new_ids);
     RUN_TEST(test_dlc_clamped);
     RUN_TEST(test_fps_window);
+    RUN_TEST(test_standard_and_extended_are_distinct);
+    RUN_TEST(test_snapshot_truncates_to_max);
     return UNITY_END();
 }

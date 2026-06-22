@@ -18,6 +18,9 @@ extern "C" {
 
 #define CAN_MONITOR_MAX_IDS 32
 
+/* Länge des fps-Messfensters in Mikrosekunden (1 s). */
+#define CAN_MONITOR_FPS_WINDOW_US 1000000
+
 /* Statistik zu genau einer CAN-ID. */
 typedef struct
 {
@@ -26,7 +29,7 @@ typedef struct
     uint8_t  data[8];       /* zuletzt empfangene Datenbytes                   */
     uint8_t  dlc;           /* Data Length Code des letzten Frames             */
     uint32_t count;         /* kumulative Frame-Anzahl seit reset              */
-    uint32_t window_count;  /* Frames seit letztem fps-Fenster (intern)        */
+    uint32_t window_count;  /* interner Zähler – NICHT anzeigen, fps verwenden */
     uint32_t fps;           /* Frames im letzten abgeschlossenen 1-s-Fenster   */
     int64_t  last_us;       /* Zeitstempel des letzten Frames (µs)             */
 } can_monitor_entry_t;
@@ -37,6 +40,7 @@ typedef struct
     can_monitor_entry_t entries[CAN_MONITOR_MAX_IDS];
     size_t              count;                 /* belegte Einträge             */
     int64_t             fps_window_start_us;   /* Beginn des aktuellen Fensters */
+    bool                fps_initialized;       /* true nach dem ersten update_fps-Aufruf */
 } can_monitor_t;
 
 /* Setzt den Monitor auf leer zurück. */
