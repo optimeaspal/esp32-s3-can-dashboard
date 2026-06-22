@@ -1,6 +1,7 @@
 #pragma once
 
 #include "can_signal.h"
+#include "can_monitor.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -33,6 +34,17 @@ esp_err_t can_dispatcher_start(
     const can_signal_t *signals,
     size_t              signal_count,
     QueueHandle_t       event_queue);
+
+/*
+ * Kopiert einen thread-sicheren Snapshot der CAN-RX-Monitor-Tabelle.
+ *
+ * @param out            Zielarray (Aufrufer stellt bereit)
+ * @param max            Kapazität von out
+ * @param out_total_fps  (optional) Gesamt-Framerate; darf NULL sein
+ * @return Anzahl kopierter Einträge (sortiert nach (extended, id)).
+ */
+size_t can_dispatcher_get_monitor(can_monitor_entry_t *out, size_t max,
+                                  uint32_t *out_total_fps);
 
 #ifdef __cplusplus
 }
