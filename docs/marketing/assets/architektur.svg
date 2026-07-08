@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" font-family="'Segoe UI',Arial,sans-serif">
+  <rect width="900" height="400" fill="#ffffff"/>
+  <text x="450" y="34" text-anchor="middle" font-size="24" font-weight="700" fill="#0f172a">Protokoll-agnostisches Signalmodell</text>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0 0 L8 3 L0 6 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowback" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0 0 L8 3 L0 6 z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <!-- Sources -->
+  <g font-size="18" font-weight="700" text-anchor="middle">
+    <rect x="40" y="90" width="150" height="52" rx="10" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2"/>
+    <text x="115" y="122" fill="#1d4ed8">CAN-Bus</text>
+    <rect x="40" y="164" width="150" height="52" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+    <text x="115" y="196" fill="#059669">MQTT-Broker</text>
+    <rect x="40" y="238" width="150" height="52" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+    <text x="115" y="270" fill="#64748b">Simulator</text>
+  </g>
+  <text x="115" y="76" text-anchor="middle" font-size="15" fill="#94a3b8" font-weight="600">QUELLEN</text>
+
+  <!-- Signal model (center) -->
+  <rect x="330" y="120" width="230" height="140" rx="14" fill="#0f172a"/>
+  <text x="445" y="152" text-anchor="middle" font-size="19" font-weight="700" fill="#ffffff">Signal-Modell</text>
+  <text x="445" y="184" text-anchor="middle" font-size="15" fill="#93c5fd">source: can | mqtt | sim</text>
+  <text x="445" y="208" text-anchor="middle" font-size="15" fill="#6ee7b7">write: can_tx | mqtt_pub</text>
+  <text x="445" y="238" text-anchor="middle" font-size="13" fill="#94a3b8">UI kennt nur Signalnamen</text>
+
+  <!-- Widgets -->
+  <g font-size="17" font-weight="700" text-anchor="middle">
+    <rect x="700" y="108" width="170" height="60" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="785" y="134" fill="#1d4ed8">Anzeige-Widgets</text>
+    <text x="785" y="156" font-size="13" font-weight="500" fill="#64748b">Gauge·Arc·Bar·LED</text>
+    <rect x="700" y="212" width="170" height="60" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+    <text x="785" y="238" fill="#4338ca">Eingabe-Widgets</text>
+    <text x="785" y="260" font-size="13" font-weight="500" fill="#64748b">Button·Switch·Edit</text>
+  </g>
+  <text x="785" y="94" text-anchor="middle" font-size="15" fill="#94a3b8" font-weight="600">DISPLAY</text>
+
+  <!-- arrows sources -> model -->
+  <path d="M190 116 H330" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M190 190 H330" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M190 264 H330" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- model -> display -->
+  <path d="M560 150 H700 L700 138" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- back channel: input widgets -> model -> sources -->
+  <path d="M700 242 H590 Q560 242 560 220" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arrowback)"/>
+  <path d="M330 220 Q210 220 210 150" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arrowback)"/>
+  <text x="445" y="330" text-anchor="middle" font-size="16" font-weight="700" fill="#2563eb">Rückkanal — Bedienung → CAN-Send / MQTT-Publish</text>
+  <text x="445" y="356" text-anchor="middle" font-size="13" fill="#94a3b8">kein protokollübergreifendes Routing — jede Richtung genau eine Sink</text>
+</svg>
